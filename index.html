@@ -1,0 +1,1686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Singing Bowl</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{background:#060606;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;min-height:100vh;overscroll-behavior:none;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+#bgGlow{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:0;transition:background 2.2s ease,opacity 1.1s ease}
+
+/* ══ LAYOUT ══ */
+.app{position:relative;z-index:1;display:grid;grid-template-columns:320px 1fr;grid-template-rows:56px 1fr;height:100vh;max-height:100vh;max-width:1600px;margin:0 auto}
+.sidebar{grid-column:1;grid-row:1/3;background:#0a0a0a;border-right:1px solid #161616;display:flex;flex-direction:column;overflow:hidden;transition:all .25s}
+.sb-scroll{flex:1;overflow-y:auto;padding:14px 15px 22px;display:flex;flex-direction:column;gap:12px}
+.sb-scroll::-webkit-scrollbar{width:3px}.sb-scroll::-webkit-scrollbar-thumb{background:#1e1e1e;border-radius:3px}
+.topbar{grid-column:2;grid-row:1;padding:0 22px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #0f0f0f;background:#070707;gap:12px}
+.main{grid-column:2;grid-row:2;display:flex;flex-direction:column;overflow:hidden;padding:14px 18px 14px}
+/* Sidebar collapse */
+.app.sb-hidden{grid-template-columns:0 1fr}
+.app.sb-hidden .sidebar{display:none}
+.app.sb-hidden .topbar{grid-column:1/3}
+.app.sb-hidden .main{grid-column:1/3}
+/* ══ MOBILE ══ */
+.mob-ctrl{display:none}
+.mob-drawer-handle{display:none}
+.mob-drawer-hdr{display:none}
+#mobDrawerBackdrop{display:none;position:fixed;inset:0;z-index:98;background:rgba(0,0,0,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+@media(max-width:720px){
+  .app{grid-template-columns:1fr;grid-template-rows:48px 1fr;height:auto;min-height:100vh;overflow-y:auto}
+  .topbar{grid-column:1;grid-row:1;padding:0 10px;gap:6px}
+  .main{grid-column:1;grid-row:2;padding:10px 12px 14px;overflow:visible}
+  .sidebar{position:fixed;bottom:0;left:0;right:0;z-index:100;max-height:72vh;border-right:none;border-top:1px solid #232323;border-radius:18px 18px 0 0;transform:translateY(100%);transition:transform .3s cubic-bezier(.25,.46,.45,.94);display:flex;flex-direction:column;grid-column:unset;grid-row:unset}
+  .sidebar.mob-open{transform:translateY(0)}
+  .app.sb-hidden .sidebar{display:flex!important}
+  .app.sb-hidden .topbar,.app.sb-hidden .main{grid-column:1}
+  .mob-ctrl{display:flex!important;flex-direction:column;gap:8px;margin-bottom:12px}
+  .mob-ctrl .bowl-tabs{margin-bottom:0}
+  .mode-tabs{flex:1}
+  .mode-tab{padding:9px 6px;font-size:12px;flex:1;text-align:center}
+  .ref-grp,.app-ttl{display:none}
+  #sbToggleBtn{min-width:44px;min-height:44px;font-size:18px;display:flex;align-items:center;justify-content:center;padding:0}
+  #langBtn{min-width:44px;min-height:44px;font-size:18px;display:flex;align-items:center;justify-content:center;padding:0}
+  .start-btn{min-height:48px;font-size:14px;border-radius:12px}
+  .btab{min-height:44px;font-size:13px}
+  .pal-btn{height:46px}
+  .seq-btn{min-height:38px;padding:8px 12px;font-size:12px}
+  .cc-btn{min-height:38px;padding:8px 12px;font-size:12px}
+  .auto-sym{font-size:72px;margin:12px 0 4px}
+  .auto-ck-name{font-size:34px}
+  .auto-note-line{font-size:15px}
+  #arcMeter{max-width:300px}
+  .seq-list{max-height:52px}
+  .mob-drawer-handle{display:flex!important;justify-content:center;padding:10px 0 4px;flex-shrink:0}
+  .mob-drawer-bar{width:38px;height:4px;background:#333;border-radius:2px}
+  .mob-drawer-hdr{display:flex!important;align-items:center;justify-content:space-between;padding:4px 16px 8px;flex-shrink:0}
+  .mob-drawer-hdr .sec-lbl{margin:0}
+  .mob-drawer-close{background:none;border:1px solid #222;border-radius:8px;color:#666;font-size:18px;width:36px;height:36px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  #bowlCanvas{min-height:260px}
+}
+@media(orientation:landscape) and (max-height:500px){.app{grid-template-columns:260px 1fr;grid-template-rows:44px 1fr;height:100vh}.sidebar{grid-column:1;grid-row:1/3}.topbar{grid-column:2;grid-row:1}.main{grid-column:2;grid-row:2;padding:8px 13px}}
+
+/* ══ TOPBAR ══ */
+.app-ttl{font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#555}
+.ref-grp{display:flex;background:#0f0f0f;border:1px solid #1a1a1a;border-radius:7px;overflow:hidden}
+.ref-btn{padding:5px 10px;font-size:11px;font-weight:600;color:#555;background:none;border:none;cursor:pointer;transition:all .2s;font-family:inherit}
+.ref-btn.on{background:#1a1a1a;color:#ccc}
+/* Mode tabs in topbar */
+.mode-tabs{display:flex;background:#0f0f0f;border:1px solid #1a1a1a;border-radius:8px;padding:2px;gap:2px}
+.mode-tab{padding:6px 14px;border:none;border-radius:6px;background:none;color:#555;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:all .2s;font-family:inherit;white-space:nowrap}
+.mode-tab.on{background:#1a1a1a;color:#ccc}
+
+/* ══ SIDEBAR ELEMENTS ══ */
+.sec-lbl{font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#484848;margin-bottom:4px}
+.start-btn{width:100%;padding:12px;border-radius:8px;border:1px solid #1a1a1a;background:#0f0f0f;color:#bbb;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:all .2s;font-family:inherit}
+.start-btn.on{background:#071507;border-color:#193819;color:#4CAF50}
+.status{text-align:center;font-size:11px;color:#555;margin-top:4px}
+.dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#4CAF50;margin-right:3px;vertical-align:middle;animation:blink 1.4s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.08}}
+
+/* Palette */
+.pal-oct-grp{display:flex;flex-direction:column;gap:3px}
+.pal-oct-lbl{font-size:10px;font-weight:700;letter-spacing:.12em;color:#3a3a3a;padding:1px 0}
+.pal-row{display:flex;gap:3px}
+.pal-btn{flex:1;height:36px;border-radius:5px;border:1.5px solid transparent;background:#0f0f0f;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;flex-direction:column;line-height:1;transition:all .12s}
+.pal-btn .pn{font-size:13px;font-weight:800}.pal-btn .po{font-size:9px;opacity:.35;margin-top:2px}
+.pal-btn.active{opacity:1}.pal-btn.inactive{opacity:.45}
+.pal-btn:hover{filter:brightness(1.5);opacity:1!important}
+
+/* Presets */
+.preset-list{display:flex;flex-direction:column;gap:4px}
+.preset-btn{width:100%;padding:9px 11px;border:1px solid #141414;border-radius:7px;background:#0d0d0d;cursor:pointer;font-family:inherit;text-align:left;transition:all .15s}
+.preset-btn:hover{border-color:#222;background:#121212}.preset-btn.on{border-color:#1b381b;background:#060f06}
+.pb-head{font-size:12px;font-weight:700;color:#555;display:flex;align-items:center;gap:6px}
+.pb-head span{font-size:15px}.pb-desc{font-size:10.5px;color:#555;margin-top:2px;line-height:1.4}
+
+/* Sound panel */
+.snd-panel{background:#0d0d0d;border:1px solid #151515;border-radius:9px;padding:11px 13px;display:flex;flex-direction:column;gap:8px}
+.snd-row{display:flex;align-items:center;gap:8px}
+.snd-lbl{font-size:12px;font-weight:700;color:#555;width:62px;flex-shrink:0}
+.snd-val{font-size:12px;color:#555;width:34px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums}
+input[type=range]{flex:1;height:3px;border-radius:3px;-webkit-appearance:none;appearance:none;background:#1a1a1a;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#333;cursor:pointer;border:1.5px solid #4a4a4a;transition:background .15s}
+input[type=range]:hover::-webkit-slider-thumb{background:#666}
+
+/* ══ WAVEFORM ══ */
+#waveformWrap{background:#090909;border:1px solid #111;border-radius:10px;margin-bottom:10px;overflow:hidden;flex-shrink:0;position:relative}
+#waveCanvas{width:100%;height:64px;display:block}
+#waveLabel{position:absolute;top:6px;left:12px;font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#555;pointer-events:none}
+.wave-mode-btns{position:absolute;top:6px;right:8px;display:flex;gap:3px}
+.wm-btn{padding:3px 8px;font-size:10px;font-weight:700;border:1px solid #1a1a1a;border-radius:4px;background:#111;color:#555;cursor:pointer;font-family:inherit;transition:all .15s}
+.wm-btn.on{background:#0c1c0c;border-color:#1a3a1a;color:#3CAF40}
+
+/* ══ BOWL PANEL ══ */
+#bowlPanel{display:flex;flex:1;flex-direction:column;overflow:hidden;min-height:0}
+.bowl-tabs{display:flex;background:#0e0e0e;border:1px solid #171717;border-radius:8px;padding:2px;gap:2px;margin-bottom:10px;flex-shrink:0}
+.btab{flex:1;padding:8px 4px;border:none;border-radius:6px;background:none;color:#555;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:all .2s;font-family:inherit}
+.btab.on{background:#1a1a1a;color:#ccc}
+
+/* Auto detect */
+.auto-sym{font-size:56px;text-align:center;margin:8px 0 3px;line-height:1}
+@keyframes ck-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.auto-sym.in-tune{animation:ck-pulse 1.2s ease-in-out infinite}
+.auto-ck-name{font-size:28px;font-weight:700;text-align:center;margin-bottom:3px}
+.auto-note-line{font-size:13px;color:#555;text-align:center;margin-bottom:10px;font-variant-numeric:tabular-nums}
+.arc-wrap{display:flex;flex-direction:column;align-items:center}
+#arcMeter{width:100%;max-width:280px}
+#arcNeedle{transform-box:fill-box;transform-origin:bottom center;transform:rotate(0deg);transition:transform .15s cubic-bezier(.25,.46,.45,.94),stroke .2s,filter .2s}
+.arc-cents{font-size:12px;text-align:center;height:17px;margin-top:-2px}
+
+/* Reference panel */
+#refPanel{display:none;flex:1;flex-direction:column;overflow:hidden;min-height:0}
+#bowlInfoBar{background:#0b0b0b;border:1.5px solid #171717;border-radius:10px;padding:8px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;transition:border-color .5s,background .5s;min-height:48px;flex-shrink:0}
+#bibSym{font-size:20px;line-height:1}
+#bibText{flex:1;min-width:0}
+#bibName{font-size:13px;font-weight:700;transition:color .4s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bibSub{font-size:11px;color:#555;margin-top:1px;font-variant-numeric:tabular-nums}
+#bibRing{font-size:11px;color:#444;display:none;align-items:center;gap:3px;flex-shrink:0}
+
+/* Seq */
+.seq-bar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;background:#0b0b0b;border:1px solid #171717;border-radius:8px;padding:7px 11px;margin-bottom:7px;flex-shrink:0}
+.seq-lbl{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#555}
+.seq-btn{padding:5px 10px;border:1px solid #1a1a1a;border-radius:5px;background:#0f0f0f;color:#404040;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
+.seq-btn:hover{border-color:#252525;color:#777}
+.seq-btn.on{background:#071507;border-color:#194219;color:#4CAF50}
+.seq-btn.dng{color:#773030;border-color:#280e0e}
+.seq-spd{display:flex;align-items:center;gap:4px;margin-left:auto}
+.spd-b{width:22px;height:22px;border-radius:4px;border:1px solid #1a1a1a;background:#0f0f0f;color:#404040;font-size:13px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.spd-b:hover{color:#888}
+.spd-v{font-size:11px;font-weight:700;color:#555;min-width:28px;text-align:center}
+.seq-list{background:#080808;border:1px solid #131313;border-radius:8px;padding:7px;margin-bottom:7px;flex-shrink:0;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;min-height:38px;max-height:72px;overflow-y:auto}
+.seq-item{display:flex;align-items:center;gap:4px;background:#111;border:1px solid #1a1a1a;border-radius:5px;padding:4px 8px;cursor:pointer;transition:all .15s}
+.seq-item:hover{border-color:#252525}.seq-item.playing{border-color:#4CAF50;background:#061206}
+.si-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}.si-txt{font-size:11px;font-weight:700;color:#555}
+.si-del{font-size:9px;color:#444;opacity:0;transition:opacity .15s;cursor:pointer;margin-left:2px}
+.seq-item:hover .si-del{opacity:1}
+.seq-empty{font-size:11px;color:#555;line-height:1.9;padding:3px 2px}
+
+/* Canvas controls */
+.cc-row{display:flex;gap:5px;margin-bottom:7px;flex-wrap:wrap;flex-shrink:0}
+.cc-btn{padding:5px 10px;border:1px solid #161616;border-radius:5px;background:#0b0b0b;color:#555;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;letter-spacing:.04em}
+.cc-btn:hover{border-color:#242424;color:#666}.cc-btn.on{background:#061206;border-color:#193619;color:#4CAF50}
+
+/* Bowl canvas */
+#bowlCanvas{flex:1;min-height:0;position:relative;border-radius:12px;background:#080808;border:1px solid #111;overflow:hidden;touch-action:none}
+#bowlCanvas.fs-mode{position:fixed;inset:0;z-index:300;border-radius:0;border:none}
+.bwl{position:absolute;border-radius:50%;cursor:pointer;touch-action:none;overflow:visible;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:box-shadow .4s ease}
+.bwl:active{filter:brightness(1.5)}.bwl.dragging{cursor:grabbing;opacity:.7;z-index:20;transition:none}.bwl.sel{z-index:5}
+.bwl-note{font-size:12px;font-weight:800;color:rgba(255,255,255,.45);pointer-events:none;line-height:1}
+.bwl-lbl{position:absolute;white-space:nowrap;font-size:10px;color:#555;pointer-events:none;line-height:1.4;top:calc(100% + 5px);left:50%;transform:translateX(-50%);text-align:center;transition:color .2s}
+.bwl.sel .bwl-lbl{color:#777}
+.bwl-seq{font-size:8px;font-weight:800;position:absolute;top:-3px;right:-3px;width:15px;height:15px;border-radius:50%;display:none;align-items:center;justify-content:center;background:#fff;color:#000;z-index:6}
+.bwl.seq-active .bwl-seq{display:flex}
+@keyframes b-ring{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.6);opacity:0}}
+.b-ring{position:absolute;inset:0;border-radius:50%;pointer-events:none;border:1.5px solid var(--ck,#fff);animation:b-ring .78s ease-out forwards}
+#onboardHint{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;pointer-events:none;transition:opacity .4s}
+.oh-l{font-size:11px;color:#444;text-align:center;line-height:1.8}
+
+/* ══ GUITAR PANEL ══ */
+#guitarPanel{display:none;flex:1;flex-direction:column}
+.g-note-wrap{text-align:center;padding:14px 0 10px;display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.g-note-row{display:flex;align-items:flex-start;justify-content:center;line-height:1}
+#nLetter{font-size:88px;font-weight:800;letter-spacing:-3px;transition:color .2s;color:#181818;min-width:58px;text-align:right}
+#nAcc{font-size:38px;font-weight:600;margin-top:10px;transition:color .2s}
+#nOct{font-size:44px;font-weight:300;color:#383838;margin-top:12px;margin-left:3px}
+#nHz{font-size:22px;color:#555;margin-top:4px;font-variant-numeric:tabular-nums}
+#nCents{font-size:13px;margin-top:2px;height:18px;transition:color .2s;color:transparent}
+.meter-wrap{margin:0 0 14px;flex-shrink:0}
+.meter-lbls{display:flex;justify-content:space-between;padding:0 3px;margin-bottom:5px}
+.meter-lbls span{font-size:8.5px;color:#444}
+.meter-track{position:relative;height:4px;background:#0f0f0f;border-radius:2px}
+#mFill{position:absolute;top:0;height:100%;border-radius:2px;width:0;left:50%;transition:left .15s,width .15s,background .2s}
+.m-ctr{position:absolute;top:-4px;left:50%;transform:translateX(-50%);width:1.5px;height:12px;background:#191919;border-radius:1px;z-index:2}
+#mNeedle{position:absolute;top:-8px;width:3px;height:20px;border-radius:2px;background:#888;transform:translateX(-50%);left:50%;z-index:3;box-shadow:0 0 6px rgba(255,255,255,.12);transition:left .15s cubic-bezier(.25,.46,.45,.94),background .2s}
+.str-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;flex-shrink:0}
+@media(min-width:900px){.str-grid{grid-template-columns:repeat(6,1fr)}}
+.sc{background:#0e0e0e;border:1.5px solid #171717;border-radius:10px;padding:10px 4px 8px;text-align:center;transition:border-color .2s,background .2s}
+.sc.closest{border-color:#FFC107;background:#141000}.sc.in-tune{border-color:#4CAF50;background:#061206}
+.sc-name{font-size:18px;font-weight:700}.sc-hz{font-size:8.5px;color:#555;margin-top:2px}
+.sc-cts{font-size:10px;margin-top:4px;height:14px;color:#555;font-variant-numeric:tabular-nums}
+
+/* ══ MODALS ══ */
+.modal-bg{position:fixed;inset:0;z-index:400;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.84);backdrop-filter:blur(14px);padding:18px}
+.modal-box{background:#111;border:1px solid #202020;border-radius:18px;padding:20px;max-width:580px;width:100%;max-height:92vh;overflow-y:auto}
+.modal-box::-webkit-scrollbar{width:3px}.modal-box::-webkit-scrollbar-thumb{background:#222;border-radius:3px}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:4px}
+.modal-sub{font-size:12px;color:#555;margin-bottom:14px;line-height:1.6}
+/* Preset category tabs */
+.cat-tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:13px}
+.cat-tab{padding:6px 12px;border:1px solid #1a1a1a;border-radius:6px;background:#0e0e0e;color:#333;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
+.cat-tab:hover{border-color:#282828;color:#777}.cat-tab.on{background:#0a1e0a;border-color:#1b401b;color:#4CAF50}
+.pm-grid{display:flex;flex-direction:column;gap:8px}
+.pm-card{background:#0d0d0d;border:1.5px solid #1b1b1b;border-radius:11px;padding:12px 15px;cursor:pointer;transition:all .15s}
+.pm-card:hover{border-color:#2a2a2a;background:#121212}.pm-card.on{border-color:#1b381b;background:#060f06}
+.pm-card-head{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.pm-card-icon{font-size:22px}.pm-card-name{font-size:14px;font-weight:700}
+.pm-card-tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;border:1px solid transparent;margin-left:auto}
+.pm-card-bowls{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px}
+.pm-chip{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;border:1px solid transparent}
+.pm-card-desc{font-size:11px;color:#555;line-height:1.6}
+.pm-card-benefit{font-size:11px;font-weight:700;margin-top:5px;padding:4px 9px;border-radius:4px;display:inline-block}
+.modal-close{margin-top:12px;width:100%;padding:11px;border:1px solid #1e1e1e;border-radius:9px;background:#0d0d0d;color:#484848;font-size:13px;cursor:pointer;font-family:inherit;transition:all .15s}
+.modal-close:hover{background:#131313;color:#777}
+
+/* Octave popup */
+#octPopup{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.77);backdrop-filter:blur(10px)}
+.oct-box{background:#181818;border:1px solid #282828;border-radius:16px;padding:20px 18px;text-align:center;min-width:210px}
+.oct-sym{font-size:28px;margin-bottom:3px}.oct-title{font-size:14px;font-weight:700;margin-bottom:1px}
+.oct-sub{font-size:9px;color:#555;margin-bottom:12px}
+.oct-btns{display:flex;gap:5px;margin-bottom:5px}
+.oct-btn{flex:1;padding:11px 0;border:1px solid #252525;border-radius:8px;background:#111;color:#404040;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s}
+.oct-btn.on{background:#0a260a;border-color:#18501a;color:#4CAF50}
+.oct-hz{font-size:10px;color:#555;margin-bottom:12px;height:14px;font-variant-numeric:tabular-nums}
+.oct-close{padding:7px 22px;border:1px solid #1e1e1e;border-radius:8px;background:#0f0f0f;color:#404040;font-size:10px;cursor:pointer;font-family:inherit}
+
+/* Language menu */
+.lang-opt{display:block;width:100%;padding:5px 10px;border:none;background:none;color:#555;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left;border-radius:5px;transition:all .15s;white-space:nowrap}
+.lang-opt:hover,.lang-opt.on{background:#1a1a1a;color:#ccc}
+</style>
+</head>
+<body>
+<div id="bgGlow"></div>
+<div id="mobDrawerBackdrop" onclick="closeMobDrawer()"></div>
+
+<!-- file:// 프로토콜 경고 배너 (localhost·https에서는 자동 숨김) -->
+<div id="fileBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:600;background:#1a1200;border-bottom:1px solid #3d2e00;padding:7px 16px;font-size:11px;font-weight:700;color:#FFC107;text-align:center;letter-spacing:.02em">
+  📡 file:// 감지 — 마이크는 <strong>localhost</strong>에서만 동작합니다 &nbsp;·&nbsp; 터미널에서 <code style="background:#2a1e00;padding:1px 5px;border-radius:3px">npx serve .</code> 실행 후 http://localhost:3000 으로 접속
+  <button onclick="this.parentElement.style.display='none'" style="float:right;background:none;border:none;color:#FFC107;font-size:14px;cursor:pointer;line-height:1;margin-top:-1px">✕</button>
+</div>
+
+<div class="app">
+
+<!-- ══ SIDEBAR ══ -->
+<div class="sidebar">
+  <div class="mob-drawer-handle"><div class="mob-drawer-bar"></div></div>
+  <div class="mob-drawer-hdr">
+    <span class="sec-lbl" data-i18n="soundEngine">Sound Engine</span>
+    <button class="mob-drawer-close" onclick="closeMobDrawer()">✕</button>
+  </div>
+  <div style="padding:10px 13px 8px;flex-shrink:0">
+    <!-- Bowl sub-tabs shown in sidebar when in bowl mode -->
+    <div id="sbBowlTabs" style="display:flex;flex-direction:column;gap:8px">
+      <div class="sec-lbl" style="margin-bottom:0" data-i18n="mode">Mode</div>
+      <div class="bowl-tabs" style="margin-bottom:0">
+        <button class="btab on" id="tabAuto" onclick="setBowlTab('auto')" data-i18n="tabAuto">Auto Detect</button>
+        <button class="btab"    id="tabRef"  onclick="setBowlTab('ref')" data-i18n="tabRef">Reference</button>
+      </div>
+    </div>
+  </div>
+  <div class="sb-scroll">
+
+    <!-- Auto detect start -->
+    <div id="sideAutoArea">
+      <button class="start-btn" id="startBtnB" onclick="toggleListen()" data-i18n="startListening">Start Listening</button>
+      <div class="status" id="statusTxtB" data-i18n="micPrompt">Tap to enable microphone</div>
+    </div>
+
+    <!-- Reference: presets + palette + sound -->
+    <div id="sideRefArea" style="display:none;flex-direction:column;gap:11px">
+      <div>
+        <div class="sec-lbl" data-i18n="healingPresets">Healing Presets</div>
+        <div class="preset-list" id="presetList"></div>
+        <button id="allPresetsSmallBtn" style="width:100%;margin-top:4px;padding:6px;border:1px solid #161616;border-radius:7px;background:#0d0d0d;color:#2e2e2e;font-size:9px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.05em;transition:all .15s" onclick="showPresetModal()" data-i18n="allPresets">
+          ☰ All Presets (organ / brain / sleep…)
+        </button>
+      </div>
+      <div>
+        <div class="sec-lbl" data-i18n="bowlPalette">Bowl Palette — click to toggle</div>
+        <div id="paletteWrap" style="display:flex;flex-direction:column;gap:4px"></div>
+      </div>
+      <div>
+        <div class="sec-lbl" style="margin-bottom:5px" data-i18n="soundEngine">Sound Engine</div>
+        <!-- Speaker preset buttons -->
+        <div style="display:flex;gap:3px;margin-bottom:6px">
+          <button id="spkLaptop" onclick="setSpeakerPreset('laptop')" style="flex:1;padding:5px 3px;border:1px solid #1a3a1a;border-radius:5px;background:#071507;color:#4CAF50;font-size:8px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap" data-i18n="spkLaptop">💻 Laptop</button>
+          <button id="spkBT"     onclick="setSpeakerPreset('bt')"     style="flex:1;padding:5px 3px;border:1px solid #1a1a1a;border-radius:5px;background:#0f0f0f;color:#333;font-size:8px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap" data-i18n="spkBT">📢 Speaker</button>
+          <button id="spkEar"    onclick="setSpeakerPreset('ear')"    style="flex:1;padding:5px 3px;border:1px solid #1a1a1a;border-radius:5px;background:#0f0f0f;color:#333;font-size:8px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap" data-i18n="spkEar">🎧 Earphone</button>
+        </div>
+        <div class="snd-panel">
+          <div class="snd-row">
+            <span class="snd-lbl" data-i18n="duration">Duration</span>
+            <input type="range" id="sndDecay" min="2" max="30" step=".5" value="11" oninput="updateSnd()">
+            <span class="snd-val" id="vDecay">11s</span>
+          </div>
+          <div class="snd-row">
+            <span class="snd-lbl" data-i18n="warmth">Warmth</span>
+            <input type="range" id="sndWarmth" min="0" max="1" step=".05" value="0.72" oninput="updateSnd()">
+            <span class="snd-val" id="vWarmth">72%</span>
+          </div>
+          <div class="snd-row">
+            <span class="snd-lbl" data-i18n="reverb">Reverb</span>
+            <input type="range" id="sndReverb" min="0" max="1" step=".05" value="0.38" oninput="updateSnd()">
+            <span class="snd-val" id="vReverb">38%</span>
+          </div>
+          <div class="snd-row">
+            <span class="snd-lbl" data-i18n="volume">Volume</span>
+            <input type="range" id="sndVol" min="0.1" max="1" step=".05" value="0.82" oninput="updateSnd()">
+            <span class="snd-val" id="vVol">82%</span>
+          </div>
+          <div class="snd-row" style="padding-top:5px;border-top:1px solid #141414;margin-top:1px">
+            <span class="snd-lbl" data-i18n="lowCut">Low-cut</span>
+            <input type="range" id="sndHPF" min="30" max="130" step="5" value="55" oninput="updateSnd()">
+            <span class="snd-val" id="vHPF">55Hz</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guitar sidebar -->
+    <div id="sideGuitarArea" style="display:none">
+      <button class="start-btn" id="startBtn" onclick="toggleListen()" data-i18n="startListening">Start Listening</button>
+      <div class="status" id="statusTxt" data-i18n="micPrompt">Tap to enable microphone</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ TOPBAR ══ -->
+<div class="topbar">
+  <div class="mode-tabs">
+    <button class="mode-tab on" id="mBowl" onclick="setMode('bowl')" data-i18n="modeBowl">🎵 Singing Bowl</button>
+    <button class="mode-tab"    id="mGuitar" onclick="setMode('guitar')" data-i18n="modeGuitar">🎸 Guitar Tuner</button>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button id="sbToggleBtn" onclick="toggleSidebar()" style="padding:5px 8px;border:1px solid #1a1a1a;border-radius:6px;background:#0f0f0f;color:#555;font-size:14px;cursor:pointer;line-height:1;font-family:inherit;transition:all .2s" title="Toggle sidebar">☰</button>
+    <span class="app-ttl" data-i18n="appTitle">Tuner</span>
+    <div class="ref-grp">
+      <button class="ref-btn on" id="btn440" onclick="setRef(440)">A=440</button>
+      <button class="ref-btn"    id="btn432" onclick="setRef(432)">A=432</button>
+    </div>
+    <div style="position:relative">
+      <button id="langBtn" onclick="toggleLangMenu()" style="padding:5px 9px;border:1px solid #1a1a1a;border-radius:7px;background:#0f0f0f;color:#555;font-size:15px;cursor:pointer;line-height:1;font-family:inherit;transition:all .2s" title="Language">🌐</button>
+      <div id="langMenu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#111;border:1px solid #222;border-radius:8px;padding:4px;z-index:200;min-width:115px;box-shadow:0 8px 24px rgba(0,0,0,.7)">
+        <button class="lang-opt on" data-lang="en" onclick="setLang('en')">🇺🇸 English</button>
+        <button class="lang-opt" data-lang="ko" onclick="setLang('ko')">🇰🇷 한국어</button>
+        <button class="lang-opt" data-lang="ja" onclick="setLang('ja')">🇯🇵 日本語</button>
+        <button class="lang-opt" data-lang="zh" onclick="setLang('zh')">🇨🇳 中文</button>
+        <button class="lang-opt" data-lang="ar" onclick="setLang('ar')">🇸🇦 العربية</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MAIN ══ -->
+<div class="main">
+
+  <!-- Mobile-only controls: tabs + listen button visible without opening drawer -->
+  <div class="mob-ctrl" id="mobCtrl">
+    <div class="bowl-tabs" id="mobBowlTabs">
+      <button class="btab on" id="mobTabAuto" onclick="setBowlTab('auto')" data-i18n="tabAuto">Auto Detect</button>
+      <button class="btab"    id="mobTabRef"  onclick="setBowlTab('ref')" data-i18n="tabRef">Reference</button>
+    </div>
+    <div id="mobAutoCtrl">
+      <button class="start-btn" id="mobStartBtn" onclick="toggleListen()" data-i18n="startListening">Start Listening</button>
+      <div class="status" id="mobStatusTxt" data-i18n="micPrompt">Tap to enable microphone</div>
+    </div>
+    <div id="mobRefCtrl" style="display:none">
+      <button class="start-btn" onclick="openMobDrawer()" style="background:#0a0a14;border-color:#1a1a2a;color:#8888cc" data-i18n="mobSettings">🎛 Settings & Presets</button>
+    </div>
+  </div>
+
+  <!-- Waveform (shown in both modes when listening / bowl playing) -->
+  <div id="waveformWrap" style="display:none">
+    <canvas id="waveCanvas"></canvas>
+    <span id="waveLabel" data-i18n="waveform">Waveform</span>
+    <div class="wave-mode-btns">
+      <button class="wm-btn on" id="wmWave" onclick="setWaveMode('wave')" data-i18n="wave">Wave</button>
+      <button class="wm-btn"    id="wmSpec" onclick="setWaveMode('spec')" data-i18n="spectrum">Spectrum</button>
+    </div>
+  </div>
+
+  <!-- BOWL PANEL -->
+  <div id="bowlPanel">
+
+    <!-- AUTO DETECT -->
+    <div id="autoPanel">
+      <div class="auto-sym" id="autoSym">○</div>
+      <div class="auto-ck-name" id="autoCkName">—</div>
+      <div class="auto-note-line" id="autoNoteLine">—</div>
+      <div class="arc-wrap">
+        <svg id="arcMeter" viewBox="0 0 260 142">
+          <path d="M 28 110 A 108 108 0 0 1 232 110" stroke="#141414" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <g stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round">
+            <line x1="130" y1="16" x2="130" y2="30"/>
+            <line x1="130" y1="18" x2="130" y2="30" transform="rotate(-36,130,138)"/>
+            <line x1="130" y1="18" x2="130" y2="30" transform="rotate(36,130,138)"/>
+            <line x1="130" y1="18" x2="130" y2="30" transform="rotate(-72,130,138)"/>
+            <line x1="130" y1="18" x2="130" y2="30" transform="rotate(72,130,138)"/>
+          </g>
+          <text x="10" y="128" font-size="8.5" fill="#555" text-anchor="middle">-50¢</text>
+          <text x="250" y="128" font-size="8.5" fill="#555" text-anchor="middle">+50¢</text>
+          <text x="130" y="10" font-size="8.5" fill="#555" text-anchor="middle">0</text>
+          <circle cx="130" cy="138" r="5" fill="#161616"/><circle cx="130" cy="138" r="2.5" fill="#2a2a2a"/>
+          <line id="arcNeedle" x1="130" y1="138" x2="130" y2="36" stroke="#888" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <div class="arc-cents" id="arcCents"></div>
+      </div>
+    </div>
+
+    <!-- REFERENCE TONE -->
+    <div id="refPanel">
+      <div id="bowlInfoBar">
+        <div id="bibSym">🎵</div>
+        <div id="bibText">
+          <div id="bibName" style="color:#1c1c1c" data-i18n="choosePreset">← Choose a preset or add bowls</div>
+          <div id="bibSub"></div>
+        </div>
+        <div id="bibRing">
+          <div style="width:4px;height:4px;border-radius:50%;background:#555;animation:blink .85s infinite;display:inline-block"></div><span data-i18n="ringing">ringing</span>
+        </div>
+      </div>
+      <!-- Sequencer -->
+      <div class="seq-bar">
+        <span class="seq-lbl" data-i18n="sequence">Sequence</span>
+        <button class="seq-btn" onclick="seqAddSel()" data-i18n="addSeq">+ Add</button>
+        <button class="seq-btn on" id="seqPlayBtn" onclick="toggleSeqPlay()" style="display:none" data-i18n="playSeq">▶ Play</button>
+        <button class="seq-btn dng" id="seqClrBtn" onclick="seqClear()" style="display:none" data-i18n="clearSeq">Clear</button>
+        <div class="seq-spd" id="seqSpd" style="display:none">
+          <span style="font-size:8px;color:#555" data-i18n="interval">Interval</span>
+          <button class="spd-b" onclick="adjInt(-1000)">−</button>
+          <span class="spd-v" id="spdVal">5s</span>
+          <button class="spd-b" onclick="adjInt(1000)">+</button>
+        </div>
+      </div>
+      <div class="seq-list" id="seqList"><span class="seq-empty">Tap a bowl → "+ Add" to build a sequence</span></div>
+      <!-- Canvas controls -->
+      <div class="cc-row">
+        <button class="cc-btn" onclick="showPresetModal()" data-i18n="allPresetsBtn">🎶 All Presets</button>
+        <button class="cc-btn" id="editBtn" onclick="toggleEdit()" data-i18n="edit">✏️ Edit</button>
+        <button class="cc-btn" id="resetBtn" onclick="resetLayout()" style="display:none" data-i18n="reset">↺ Reset</button>
+        <button class="cc-btn" id="fsBtn" onclick="toggleCanvasFS()" style="margin-left:auto">⛶</button>
+      </div>
+      <!-- Bowl canvas -->
+      <div id="bowlCanvas">
+        <div id="onboardHint"><div class="oh-l" id="onboardTxt" data-i18n="onboardHint">← Pick a healing preset to begin<br>or click bowls in the palette to add them</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GUITAR PANEL -->
+  <div id="guitarPanel">
+    <div class="g-note-wrap">
+      <div class="g-note-row"><span id="nLetter">—</span><span id="nAcc"></span><span id="nOct"></span></div>
+      <div id="nHz">— Hz</div><div id="nCents"></div>
+    </div>
+    <div class="meter-wrap">
+      <div class="meter-lbls"><span>-50¢</span><span>-25</span><span>0</span><span>+25</span><span>+50¢</span></div>
+      <div class="meter-track"><div id="mFill"></div><div class="m-ctr"></div><div id="mNeedle"></div></div>
+    </div>
+    <div class="str-grid" id="strGrid"></div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ══ PRESET MODAL ══ -->
+<div id="presetModal" class="modal-bg" onclick="if(event.target===this)hidePresetModal()">
+  <div class="modal-box">
+    <div class="modal-title" data-i18n="modalTitle">Healing Presets</div>
+    <div class="modal-sub" data-i18n="modalSub">Curated sets used by sound therapists. Each preset includes recommended bowl sequence and tuning.</div>
+    <div class="cat-tabs" id="catTabs"></div>
+    <div class="pm-grid" id="pmGrid"></div>
+    <button class="modal-close" onclick="hidePresetModal()" data-i18n="close">Close</button>
+  </div>
+</div>
+
+<!-- ══ OCTAVE POPUP ══ -->
+<div id="octPopup" style="display:none" onclick="if(event.target===this)closeOctPopup()">
+  <div class="oct-box">
+    <div class="oct-sym" id="octSym"></div>
+    <div class="oct-title" id="octTitle"></div>
+    <div class="oct-sub" id="octSub"></div>
+    <div class="oct-btns" id="octBtns"></div>
+    <div class="oct-hz" id="octHz"></div>
+    <button class="oct-close" onclick="closeOctPopup()" data-i18n="octDone">Done</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════
+const NAT=['C','D','E','F','G','A','B'],NAT_M=[0,2,4,5,7,9,11],OCTS=[2,3,4,5];
+const NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const CK=[
+  {n:'C',name:'Root',nameKey:'ckRoot',sym:'🔴',col:'#FF3838',in:'10–12 in'},
+  {n:'D',name:'Sacral',nameKey:'ckSacral',sym:'🟠',col:'#FF8C00',in:'8–9 in'},
+  {n:'E',name:'Solar Plexus',nameKey:'ckSolar',sym:'🟡',col:'#FFE000',in:'7–8 in'},
+  {n:'F',name:'Heart',nameKey:'ckHeart',sym:'💚',col:'#00DD44',in:'6–7 in'},
+  {n:'G',name:'Throat',nameKey:'ckThroat',sym:'🔵',col:'#00BFFF',in:'5–6 in'},
+  {n:'A',name:'Third Eye',nameKey:'ckThirdEye',sym:'🟣',col:'#7B52FF',in:'4–5 in'},
+  {n:'B',name:'Crown',nameKey:'ckCrown',sym:'⚪',col:'#CC88FF',in:'3–4 in'},
+];
+const NC={C:'#FF3838',D:'#FF8C00',E:'#FFE000',F:'#00DD44',G:'#00BFFF',A:'#7B52FF',B:'#CC88FF'};
+
+// ── PRESET DATABASE ───────────────────────────────
+// Categories: chakra, organ, brain, sleep
+const PRESETS=[
+  // ── CHAKRA ──
+  {id:'chakra7',cat:'chakra',icon:'🌈',name:'Full Chakra Set',tag:'Classic',tagCol:'#7B52FF',
+   desc:'The standard 7-bowl healing set. Root to Crown, one bowl per chakra. Strike slowly upward for energy activation, downward for grounding.',
+   benefit:'Full body energy balance',benefitCol:'#7B52FF44',
+   bowls:[{n:'C',o:3},{n:'D',o:3},{n:'E',o:3},{n:'F',o:4},{n:'G',o:4},{n:'A',o:4},{n:'B',o:4}],
+   seq:[0,1,2,3,4,5,6],seqInt:5000,
+   pos:[[16,76],[28,54],[42,38],[57,28],[70,38],[82,54],[90,73]]},
+  {id:'triad',cat:'chakra',icon:'🎵',name:'Perfect Fifth Trio',tag:'Beginner',tagCol:'#4CAF50',
+   desc:'C–G–C: the purest harmonic interval in nature. Zero dissonance. Strike simultaneously or in sequence — both sound immediately calming.',
+   benefit:'Instant calm & grounding',benefitCol:'#4CAF5044',
+   bowls:[{n:'C',o:3},{n:'G',o:3},{n:'C',o:4}],seq:[0,1,2,1,0],seqInt:5000,
+   pos:[[25,62],[55,28],[80,62]]},
+  {id:'penta',cat:'chakra',icon:'🌸',name:'Pentatonic Flow',tag:'Sound Bath',tagCol:'#00BFFF',
+   desc:'C–D–E–G–A: the universal pentatonic scale. Every combination sounds harmonious. Ideal for group sessions and spontaneous improvisation.',
+   benefit:'Creative flow & harmony',benefitCol:'#00BFFF44',
+   bowls:[{n:'C',o:3},{n:'D',o:3},{n:'E',o:4},{n:'G',o:4},{n:'A',o:4}],
+   seq:[0,1,2,3,4,3,2,1],seqInt:4000,
+   pos:[[17,74],[33,47],[51,27],[68,47],[85,72]]},
+  // ── ORGAN ──
+  {id:'heart_organ',cat:'organ',icon:'❤️',name:'Heart & Circulation',tag:'F · C',tagCol:'#FF3838',
+   desc:'F (174 Hz region) resonates with the heart chakra and cardiac tissue. Practitioners use F+C combinations in cardiac recovery, grief work, and blood pressure support. Pair with slow diaphragmatic breathing.',
+   benefit:'Heart, circulation, emotional release',benefitCol:'#FF383844',
+   bowls:[{n:'C',o:3},{n:'F',o:3},{n:'A',o:3},{n:'C',o:4},{n:'F',o:4}],
+   seq:[0,2,1,3,4,3,1],seqInt:6500,
+   pos:[[20,70],[38,44],[57,28],[70,44],[85,68]]},
+  {id:'kidney',cat:'organ',icon:'🫘',name:'Kidney & Adrenal',tag:'D · A',tagCol:'#FF8C00',
+   desc:'D and A frequencies are traditionally associated with kidney and adrenal function in Tibetan medicine. Used for stress reduction, fluid balance, and energising fatigue. Lower octaves are preferred.',
+   benefit:'Kidneys, adrenals, stress relief',benefitCol:'#FF8C0044',
+   bowls:[{n:'D',o:2},{n:'A',o:2},{n:'D',o:3},{n:'A',o:3}],
+   seq:[0,1,2,3,2,1],seqInt:7000,
+   pos:[[22,68],[42,36],[62,36],[80,68]]},
+  {id:'lung',cat:'organ',icon:'🫁',name:'Lung & Respiratory',tag:'G · E',tagCol:'#00BFFF',
+   desc:'G (throat chakra) and E (solar plexus) create a vibration that practitioners correlate with bronchial relaxation and breath deepening. Used in asthma support and breath-work sessions.',
+   benefit:'Lungs, bronchi, breath depth',benefitCol:'#00BFFF44',
+   bowls:[{n:'E',o:3},{n:'G',o:3},{n:'B',o:3},{n:'E',o:4},{n:'G',o:4}],
+   seq:[0,1,2,3,4,3,1,0],seqInt:5500,
+   pos:[[18,72],[35,46],[54,26],[72,46],[88,72]]},
+  {id:'liver',cat:'organ',icon:'🟤',name:'Liver & Detox',tag:'E · B',tagCol:'#FFE000',
+   desc:'E and B frequencies are associated with liver, gallbladder and detoxification pathways in traditional Chinese and Tibetan sound therapy. Bright upper-mid frequencies stimulate without agitation.',
+   benefit:'Liver, gallbladder, detox',benefitCol:'#FFE00044',
+   bowls:[{n:'E',o:3},{n:'B',o:3},{n:'E',o:4},{n:'B',o:4}],
+   seq:[0,1,2,3,2,1],seqInt:5000,
+   pos:[[22,62],[44,30],[66,30],[86,62]]},
+  {id:'gut',cat:'organ',icon:'🌀',name:'Digestive System',tag:'C · E',tagCol:'#FF3838',
+   desc:'Low C and E frequencies are used by sound therapists for gut motility, IBS calming, and nervous system parasympathetic activation. Deep abdominal resonance can be physically felt with large bowls.',
+   benefit:'Gut, digestion, parasympathetic',benefitCol:'#FF383844',
+   bowls:[{n:'C',o:2},{n:'E',o:3},{n:'C',o:3},{n:'E',o:4}],
+   seq:[0,2,1,3,1,0],seqInt:6000,
+   pos:[[20,72],[40,38],[60,38],[82,72]]},
+  // ── BRAIN ──
+  {id:'focus',cat:'brain',icon:'🧠',name:'Focus & Clarity',tag:'Beta',tagCol:'#7B52FF',
+   desc:'Higher-frequency bowls (A4–B4) generate binaural-adjacent tones that support beta brainwave entrainment. Used before study, creative work, or anytime mental sharpness is needed.',
+   benefit:'Concentration, mental clarity',benefitCol:'#7B52FF44',
+   bowls:[{n:'A',o:4},{n:'B',o:4},{n:'E',o:5},{n:'A',o:5}],
+   seq:[0,1,2,3,2,1],seqInt:3500,
+   pos:[[22,60],[42,30],[62,30],[82,60]]},
+  {id:'calm',cat:'brain',icon:'🌊',name:'Calm & Alpha',tag:'Alpha',tagCol:'#00BFFF',
+   desc:'Mid-range F and G bowls support alpha brainwave states (8–12 Hz) associated with relaxed alertness. Ideal for reducing anxiety, light meditation, and creative daydreaming.',
+   benefit:'Anxiety reduction, alpha state',benefitCol:'#00BFFF44',
+   bowls:[{n:'F',o:3},{n:'G',o:3},{n:'A',o:3},{n:'F',o:4},{n:'G',o:4}],
+   seq:[0,1,2,3,4,3,1,0],seqInt:5000,
+   pos:[[18,72],[34,48],[52,28],[68,48],[88,72]]},
+  {id:'theta',cat:'brain',icon:'🌀',name:'Deep Meditation',tag:'Theta',tagCol:'#CC88FF',
+   desc:'Low C and G bowls produce theta-adjacent frequencies (4–8 Hz through resonance). Used for deep meditation, trauma release, and accessing subconscious states. Strike and allow full decay before the next.',
+   benefit:'Deep meditation, theta waves',benefitCol:'#CC88FF44',
+   bowls:[{n:'C',o:2},{n:'G',o:2},{n:'C',o:3},{n:'G',o:3}],
+   seq:[0,1,2,3,2,1,0],seqInt:9000,
+   pos:[[20,70],[40,38],[60,38],[80,70]]},
+  {id:'delta',cat:'brain',icon:'😴',name:'Deep Sleep',tag:'Delta',tagCol:'#4CAF50',
+   desc:'Very low C2 and F3 bowls — the longest, deepest sounding bowls available. Associated with delta brainwave induction (0.5–4 Hz) used in sleep clinics and yoga nidra sessions.',
+   benefit:'Sleep onset, delta waves',benefitCol:'#4CAF5044',
+   bowls:[{n:'C',o:2},{n:'F',o:2},{n:'C',o:3},{n:'F',o:3},{n:'G',o:3}],
+   seq:[0,1,2,3,4],seqInt:10000,
+   pos:[[18,70],[36,46],[55,30],[72,46],[88,70]]},
+  {id:'aura',cat:'brain',icon:'✨',name:'Aura Cleanse',tag:'High Freq',tagCol:'#00DD44',
+   desc:'High C5–B5 bowls create bright crystalline overtones. Practitioners use these for energy field clearing, mental reset after overwhelm, and cutting through mental chatter rapidly.',
+   benefit:'Aura clearing, mental reset',benefitCol:'#00DD4444',
+   bowls:[{n:'C',o:5},{n:'E',o:5},{n:'G',o:5},{n:'A',o:5},{n:'B',o:5}],
+   seq:[0,1,2,3,4,3,2,1],seqInt:3000,
+   pos:[[20,62],[36,34],[55,20],[73,34],[88,62]]},
+];
+
+const CATS=[{id:'all',labelKey:'catAll'},{id:'chakra',labelKey:'catChakra'},{id:'organ',labelKey:'catOrgan'},{id:'brain',labelKey:'catBrain'}];
+
+const G_MIDI=[40,45,50,55,59,64],G_LBL=['E₂','A₂','D₃','G₃','B₃','E₄'];
+const NG=0.003,HOLD=800,SM=0.75;
+
+// ─── STATE ───────────────────────────────────────
+let refA=440,mode='bowl',bowlTab='auto';
+let listening=false,smF=-1,lastDetT=0,lastVF=-1,yConf=0;
+let actx=null,anlsr=null,mStream=null,raf=null;
+let placed=[],bid=0,selId=-1,editMode=false,popId=-1;
+let bowlAudio=new Map();
+let sD=11,sW=0.72,sR=0.38,sV=0.82;
+let seqItems=[],seqPlay=false,seqIdx=0,seqTmr=null,seqInt=5000;
+let waveMode='wave',waveRaf=null;
+let waveAnalyser=null;
+let sHPF=55;
+let activeCat='all';
+
+// ─── I18N ─────────────────────────────────────────
+let curLang='en';
+const I18N={
+  en:{
+    appTitle:'Tuner',modeBowl:'🎵 Singing Bowl',modeGuitar:'🎸 Guitar Tuner',
+    tabAuto:'Auto Detect',tabRef:'Reference',
+    startListening:'Start Listening',stopListening:'Stop',
+    micPrompt:'Tap to enable microphone',listening:'Listening…',
+    healingPresets:'Healing Presets',allPresets:'☰ All Presets (organ / brain / sleep…)',
+    bowlPalette:'Bowl Palette — click to toggle',soundEngine:'Sound Engine',
+    spkLaptop:'💻 Laptop',spkBT:'📢 Speaker',spkEar:'🎧 Earphone',
+    duration:'Duration',warmth:'Warmth',reverb:'Reverb',volume:'Volume',lowCut:'Low-cut',
+    waveform:'Waveform',wave:'Wave',spectrum:'Spectrum',
+    sequence:'Sequence',addSeq:'+ Add',playSeq:'▶ Play',stopSeq:'⏹ Stop',clearSeq:'Clear',interval:'Interval',
+    allPresetsBtn:'🎶 All Presets',edit:'✏️ Edit',done:'✅ Done',reset:'↺ Reset',
+    onboardHint:'← Pick a healing preset to begin\nor click bowls in the palette to add them',
+    seqEmpty:'Tap a bowl → "+ Add" to build a sequence',
+    choosePreset:'← Choose a preset or add bowls',ringing:'ringing',
+    modalTitle:'Healing Presets',
+    modalSub:'Curated sets used by sound therapists. Each preset includes recommended bowl sequence and tuning.',
+    catAll:'All',catChakra:'🌈 Chakra',catOrgan:'🫀 Organs',catBrain:'🧠 Brain & Sleep',
+    close:'Close',octDone:'Done',audioUnlock:'🔊 Tap here to enable audio',mode:'Mode',
+    tapBowlFirst:'Tap a bowl first!',
+    mobSettings:'🎛 Settings & Presets',
+    ckRoot:'Root',ckSacral:'Sacral',ckSolar:'Solar Plexus',
+    ckHeart:'Heart',ckThroat:'Throat',ckThirdEye:'Third Eye',ckCrown:'Crown',
+    pn_chakra7:'Full Chakra Set',pb_chakra7:'Full body energy balance',
+    pn_triad:'Perfect Fifth Trio',pb_triad:'Instant calm & grounding',
+    pn_penta:'Pentatonic Flow',pb_penta:'Creative flow & harmony',
+    pn_heart_organ:'Heart & Circulation',pb_heart_organ:'Heart, circulation, emotional release',
+    pn_kidney:'Kidney & Adrenal',pb_kidney:'Kidneys, adrenals, stress relief',
+    pn_lung:'Lung & Respiratory',pb_lung:'Lungs, bronchi, breath depth',
+    pn_liver:'Liver & Detox',pb_liver:'Liver, gallbladder, detox',
+    pn_gut:'Digestive System',pb_gut:'Gut, digestion, parasympathetic',
+    pn_focus:'Focus & Clarity',pb_focus:'Concentration, mental clarity',
+    pn_calm:'Calm & Alpha',pb_calm:'Anxiety reduction, alpha state',
+    pn_theta:'Deep Meditation',pb_theta:'Deep meditation, theta waves',
+    pn_delta:'Deep Sleep',pb_delta:'Sleep onset, delta waves',
+    pn_aura:'Aura Cleanse',pb_aura:'Aura clearing, mental reset',
+  },
+  ko:{
+    appTitle:'튜너',modeBowl:'🎵 싱잉볼',modeGuitar:'🎸 기타 튜너',
+    tabAuto:'자동 감지',tabRef:'레퍼런스',
+    startListening:'듣기 시작',stopListening:'중지',
+    micPrompt:'마이크를 활성화하려면 탭하세요',listening:'듣는 중…',
+    healingPresets:'힐링 프리셋',allPresets:'☰ 전체 프리셋 (장기 / 뇌 / 수면…)',
+    bowlPalette:'볼 팔레트 — 클릭으로 토글',soundEngine:'사운드 엔진',
+    spkLaptop:'💻 노트북',spkBT:'📢 스피커',spkEar:'🎧 이어폰',
+    duration:'지속 시간',warmth:'따뜻함',reverb:'리버브',volume:'볼륨',lowCut:'저음 차단',
+    waveform:'파형',wave:'파형',spectrum:'스펙트럼',
+    sequence:'시퀀스',addSeq:'+ 추가',playSeq:'▶ 재생',stopSeq:'⏹ 정지',clearSeq:'지우기',interval:'간격',
+    allPresetsBtn:'🎶 전체 프리셋',edit:'✏️ 편집',done:'✅ 완료',reset:'↺ 초기화',
+    onboardHint:'← 힐링 프리셋을 선택하거나\n팔레트에서 볼을 클릭하여 추가하세요',
+    seqEmpty:'볼을 탭 → "+ 추가"로 시퀀스를 만드세요',
+    choosePreset:'← 프리셋을 선택하거나 볼을 추가하세요',ringing:'울리는 중',
+    modalTitle:'힐링 프리셋',
+    modalSub:'사운드 치료사들이 사용하는 큐레이션 세트. 각 프리셋에는 추천 볼 시퀀스와 튜닝이 포함되어 있습니다.',
+    catAll:'전체',catChakra:'🌈 차크라',catOrgan:'🫀 장기',catBrain:'🧠 뇌 & 수면',
+    close:'닫기',octDone:'완료',audioUnlock:'🔊 오디오를 활성화하려면 탭하세요',mode:'모드',
+    tapBowlFirst:'먼저 볼을 탭하세요!',
+    mobSettings:'🎛 설정 & 프리셋',
+    ckRoot:'뿌리',ckSacral:'천골',ckSolar:'태양신경총',
+    ckHeart:'심장',ckThroat:'목',ckThirdEye:'제3의 눈',ckCrown:'정수리',
+    pn_chakra7:'풀 차크라 세트',pb_chakra7:'전신 에너지 균형',
+    pn_triad:'퍼펙트 피프스 트리오',pb_triad:'즉각적인 안정과 그라운딩',
+    pn_penta:'펜타토닉 플로우',pb_penta:'창의적 흐름과 조화',
+    pn_heart_organ:'심장 & 순환',pb_heart_organ:'심장, 순환, 감정 해방',
+    pn_kidney:'신장 & 부신',pb_kidney:'신장, 부신, 스트레스 완화',
+    pn_lung:'폐 & 호흡기',pb_lung:'폐, 기관지, 호흡 깊이',
+    pn_liver:'간 & 해독',pb_liver:'간, 담낭, 해독',
+    pn_gut:'소화계',pb_gut:'장, 소화, 부교감신경',
+    pn_focus:'집중 & 명료함',pb_focus:'집중력, 정신적 명료함',
+    pn_calm:'차분함 & 알파파',pb_calm:'불안 감소, 알파파 상태',
+    pn_theta:'깊은 명상',pb_theta:'깊은 명상, 세타파',
+    pn_delta:'깊은 수면',pb_delta:'수면 유도, 델타파',
+    pn_aura:'오라 클렌징',pb_aura:'오라 정화, 정신 리셋',
+  },
+  ja:{
+    appTitle:'チューナー',modeBowl:'🎵 シンギングボウル',modeGuitar:'🎸 ギターチューナー',
+    tabAuto:'自動検出',tabRef:'リファレンス',
+    startListening:'聴取開始',stopListening:'停止',
+    micPrompt:'マイクを有効にするにはタップ',listening:'聴取中…',
+    healingPresets:'ヒーリングプリセット',allPresets:'☰ 全プリセット（臓器 / 脳 / 睡眠…）',
+    bowlPalette:'ボウルパレット — クリックで切替',soundEngine:'サウンドエンジン',
+    spkLaptop:'💻 ラップトップ',spkBT:'📢 スピーカー',spkEar:'🎧 イヤホン',
+    duration:'持続時間',warmth:'温かみ',reverb:'リバーブ',volume:'音量',lowCut:'ローカット',
+    waveform:'波形',wave:'波形',spectrum:'スペクトル',
+    sequence:'シーケンス',addSeq:'+ 追加',playSeq:'▶ 再生',stopSeq:'⏹ 停止',clearSeq:'クリア',interval:'間隔',
+    allPresetsBtn:'🎶 全プリセット',edit:'✏️ 編集',done:'✅ 完了',reset:'↺ リセット',
+    onboardHint:'← ヒーリングプリセットを選択するか\nパレットでボウルをクリックして追加',
+    seqEmpty:'ボウルをタップ → "+ 追加"でシーケンスを作成',
+    choosePreset:'← プリセットを選択するかボウルを追加',ringing:'鳴響中',
+    modalTitle:'ヒーリングプリセット',
+    modalSub:'サウンドセラピストが使用するキュレーションセット。各プリセットには推奨ボウルシーケンスとチューニングが含まれます。',
+    catAll:'すべて',catChakra:'🌈 チャクラ',catOrgan:'🫀 臓器',catBrain:'🧠 脳 & 睡眠',
+    close:'閉じる',octDone:'完了',audioUnlock:'🔊 タップしてオーディオを有効化',mode:'モード',
+    tapBowlFirst:'先にボウルをタップしてください！',
+    mobSettings:'🎛 設定 & プリセット',
+    ckRoot:'ルート',ckSacral:'仙骨',ckSolar:'太陽神経叢',
+    ckHeart:'心臓',ckThroat:'喉',ckThirdEye:'第三の目',ckCrown:'頂点',
+    pn_chakra7:'フルチャクラセット',pb_chakra7:'全身エネルギーバランス',
+    pn_triad:'パーフェクトフィフストリオ',pb_triad:'即座の落ち着きとグラウンディング',
+    pn_penta:'ペンタトニックフロー',pb_penta:'創造的フローと調和',
+    pn_heart_organ:'心臓 & 循環',pb_heart_organ:'心臓、循環、感情解放',
+    pn_kidney:'腎臓 & 副腎',pb_kidney:'腎臓、副腎、ストレス解消',
+    pn_lung:'肺 & 呼吸器',pb_lung:'肺、気管支、呼吸の深さ',
+    pn_liver:'肝臓 & デトックス',pb_liver:'肝臓、胆嚢、デトックス',
+    pn_gut:'消化系',pb_gut:'腸、消化、副交感神経',
+    pn_focus:'集中 & 明晰さ',pb_focus:'集中力、精神的明晰さ',
+    pn_calm:'穏やかさ & アルファ波',pb_calm:'不安軽減、アルファ波状態',
+    pn_theta:'深い瞑想',pb_theta:'深い瞑想、シータ波',
+    pn_delta:'深い睡眠',pb_delta:'入眠、デルタ波',
+    pn_aura:'オーラクレンズ',pb_aura:'オーラ浄化、精神リセット',
+  },
+  zh:{
+    appTitle:'调音器',modeBowl:'🎵 颂钵',modeGuitar:'🎸 吉他调音器',
+    tabAuto:'自动检测',tabRef:'参考音',
+    startListening:'开始监听',stopListening:'停止',
+    micPrompt:'点击启用麦克风',listening:'监听中…',
+    healingPresets:'治愈预设',allPresets:'☰ 全部预设（器官 / 大脑 / 睡眠…）',
+    bowlPalette:'钵调色板 — 点击切换',soundEngine:'音效引擎',
+    spkLaptop:'💻 笔记本',spkBT:'📢 音箱',spkEar:'🎧 耳机',
+    duration:'持续时间',warmth:'温暖度',reverb:'混响',volume:'音量',lowCut:'低频截断',
+    waveform:'波形',wave:'波形',spectrum:'频谱',
+    sequence:'序列',addSeq:'+ 添加',playSeq:'▶ 播放',stopSeq:'⏹ 停止',clearSeq:'清除',interval:'间隔',
+    allPresetsBtn:'🎶 全部预设',edit:'✏️ 编辑',done:'✅ 完成',reset:'↺ 重置',
+    onboardHint:'← 选择治愈预设\n或在调色板中点击钵来添加',
+    seqEmpty:'点击钵 → "+ 添加"以创建序列',
+    choosePreset:'← 选择预设或添加钵',ringing:'鸣响中',
+    modalTitle:'治愈预设',
+    modalSub:'声音治疗师使用的精选套装。每个预设包含推荐的钵序列和调音。',
+    catAll:'全部',catChakra:'🌈 脉轮',catOrgan:'🫀 器官',catBrain:'🧠 脑 & 睡眠',
+    close:'关闭',octDone:'完成',audioUnlock:'🔊 点击启用音频',mode:'模式',
+    tapBowlFirst:'请先点击一个钵！',
+    mobSettings:'🎛 设置和预设',
+    ckRoot:'根',ckSacral:'骶骨',ckSolar:'太阳神经丛',
+    ckHeart:'心脏',ckThroat:'喉咙',ckThirdEye:'第三眼',ckCrown:'顶轮',
+    pn_chakra7:'完整脉轮套装',pb_chakra7:'全身能量平衡',
+    pn_triad:'纯五度三重奏',pb_triad:'即时平静与接地',
+    pn_penta:'五声调式流',pb_penta:'创意流动与和谐',
+    pn_heart_organ:'心脏与循环',pb_heart_organ:'心脏、循环、情感释放',
+    pn_kidney:'肾脏与肾上腺',pb_kidney:'肾脏、肾上腺、减压',
+    pn_lung:'肺部与呼吸',pb_lung:'肺、支气管、呼吸深度',
+    pn_liver:'肝脏与排毒',pb_liver:'肝脏、胆囊、排毒',
+    pn_gut:'消化系统',pb_gut:'肠道、消化、副交感神经',
+    pn_focus:'专注与清醒',pb_focus:'注意力、精神清醒',
+    pn_calm:'平静与阿尔法波',pb_calm:'减轻焦虑、阿尔法波状态',
+    pn_theta:'深度冥想',pb_theta:'深度冥想、西塔波',
+    pn_delta:'深度睡眠',pb_delta:'入眠、德尔塔波',
+    pn_aura:'气场净化',pb_aura:'气场清理、精神重置',
+  },
+  ar:{
+    appTitle:'ضابط النغمات',modeBowl:'🎵 وعاء الغناء',modeGuitar:'🎸 ضابط الغيتار',
+    tabAuto:'كشف تلقائي',tabRef:'مرجع',
+    startListening:'بدء الاستماع',stopListening:'إيقاف',
+    micPrompt:'اضغط لتفعيل الميكروفون',listening:'جارٍ الاستماع…',
+    healingPresets:'إعدادات الشفاء',allPresets:'☰ جميع الإعدادات (أعضاء / دماغ / نوم…)',
+    bowlPalette:'لوحة الأوعية — انقر للتبديل',soundEngine:'محرك الصوت',
+    spkLaptop:'💻 لابتوب',spkBT:'📢 مكبر صوت',spkEar:'🎧 سماعات',
+    duration:'المدة',warmth:'الدفء',reverb:'الصدى',volume:'الصوت',lowCut:'قطع المنخفض',
+    waveform:'الموجة',wave:'موجة',spectrum:'طيف',
+    sequence:'التسلسل',addSeq:'+ إضافة',playSeq:'▶ تشغيل',stopSeq:'⏹ إيقاف',clearSeq:'مسح',interval:'الفاصل',
+    allPresetsBtn:'🎶 جميع الإعدادات',edit:'✏️ تعديل',done:'✅ تم',reset:'↺ إعادة',
+    onboardHint:'← اختر إعداد شفاء\nأو انقر على الأوعية في اللوحة لإضافتها',
+    seqEmpty:'انقر على وعاء → "+ إضافة" لإنشاء تسلسل',
+    choosePreset:'← اختر إعداداً أو أضف أوعية',ringing:'يرن',
+    modalTitle:'إعدادات الشفاء',
+    modalSub:'مجموعات منتقاة يستخدمها معالجو الصوت. يتضمن كل إعداد تسلسل وعاء موصى به وضبط النغمات.',
+    catAll:'الكل',catChakra:'🌈 شاكرا',catOrgan:'🫀 الأعضاء',catBrain:'🧠 الدماغ والنوم',
+    close:'إغلاق',octDone:'تم',audioUnlock:'🔊 اضغط لتفعيل الصوت',mode:'الوضع',
+    tapBowlFirst:'انقر على وعاء أولاً!',
+    mobSettings:'🎛 الإعدادات والحجوزات',
+    ckRoot:'الجذر',ckSacral:'العجزي',ckSolar:'الضفيرة الشمسية',
+    ckHeart:'القلب',ckThroat:'الحلق',ckThirdEye:'العين الثالثة',ckCrown:'التاج',
+    pn_chakra7:'مجموعة الشاكرا الكاملة',pb_chakra7:'توازن طاقة الجسم كله',
+    pn_triad:'ثلاثي الخامسة المثالية',pb_triad:'هدوء وتأريض فوري',
+    pn_penta:'تدفق البنتاتونيك',pb_penta:'تدفق إبداعي وتناغم',
+    pn_heart_organ:'القلب والدورة الدموية',pb_heart_organ:'القلب، الدورة الدموية، التحرر العاطفي',
+    pn_kidney:'الكلى والغدة الكظرية',pb_kidney:'الكلى، الغدة الكظرية، تخفيف الضغط',
+    pn_lung:'الرئة والجهاز التنفسي',pb_lung:'الرئتان، القصبات، عمق التنفس',
+    pn_liver:'الكبد والتخلص من السموم',pb_liver:'الكبد، المرارة، إزالة السموم',
+    pn_gut:'الجهاز الهضمي',pb_gut:'الأمعاء، الهضم، الجهاز السمبتاوي',
+    pn_focus:'التركيز والوضوح',pb_focus:'التركيز، الوضوح الذهني',
+    pn_calm:'الهدوء وموجات ألفا',pb_calm:'تقليل القلق، حالة ألفا',
+    pn_theta:'التأمل العميق',pb_theta:'تأمل عميق، موجات ثيتا',
+    pn_delta:'النوم العميق',pb_delta:'بدء النوم، موجات دلتا',
+    pn_aura:'تنقية الأورا',pb_aura:'تطهير الأورا، إعادة ضبط العقل',
+  },
+};
+function t(k){return(I18N[curLang]||I18N.en)[k]||(I18N.en[k]||k);}
+function ckName(ck){return t(ck.nameKey)||ck.name;}
+
+function applyLang(){
+  const isRTL=curLang==='ar';
+  document.documentElement.lang=curLang;
+  document.documentElement.dir=isRTL?'rtl':'ltr';
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k=el.getAttribute('data-i18n');
+    const v=t(k);
+    if(el.tagName==='INPUT')el.placeholder=v;
+    else{el.innerHTML=v.replace(/\n/g,'<br>');}
+  });
+  document.querySelectorAll('.lang-opt').forEach(b=>b.classList.toggle('on',b.dataset.lang===curLang));
+  // re-render dynamic content that uses translated strings
+  buildPresetList();
+  buildPresetModal();
+  renderSeqList();
+  resetInfoBar();
+  buildPalette();
+  try{localStorage.setItem('lang',curLang);}catch(_){}
+}
+function setLang(lang){
+  curLang=lang;
+  closeLangMenu();
+  applyLang();
+}
+function toggleLangMenu(){
+  const m=document.getElementById('langMenu');
+  m.style.display=m.style.display==='none'?'block':'none';
+}
+function closeLangMenu(){document.getElementById('langMenu').style.display='none';}
+document.addEventListener('pointerdown',e=>{
+  const menu=document.getElementById('langMenu');
+  if(menu&&!menu.contains(e.target)&&e.target.id!=='langBtn')closeLangMenu();
+},{capture:true,passive:true});
+
+// ─── INIT ────────────────────────────────────────
+// ── AUDIO UNLOCK BANNER ───────────────────────────────────────────────────
+// Modern browsers (especially on file://) block AudioContext until user gesture
+document.addEventListener('DOMContentLoaded',()=>{
+  const banner=document.createElement('div');
+  banner.id='audioUnlock';
+  banner.style.cssText='position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:999;'+
+    'background:#0f1f0f;border:1px solid #1e4a1e;border-radius:10px;padding:10px 18px;'+
+    'font-size:11px;color:#4CAF50;font-weight:700;letter-spacing:.05em;cursor:pointer;'+
+    'box-shadow:0 4px 20px rgba(0,0,0,.6);transition:opacity .4s;white-space:nowrap;';
+  banner.textContent=t('audioUnlock');
+  banner.onclick=()=>{
+    ensureActx();
+    banner.style.opacity='0';
+    setTimeout(()=>banner.remove(),500);
+  };
+  document.body.appendChild(banner);
+  // Auto-hide if user interacts with anything else
+  document.addEventListener('pointerdown',()=>{
+    ensureActx();
+    if(actx&&actx.state==='running'){
+      banner.style.opacity='0';
+      setTimeout(()=>{if(banner.parentNode)banner.remove();},500);
+    }
+  },{once:true});
+
+  // file:// 프로토콜 감지 배너 표시
+  if(location.protocol==='file:'){
+    const fb=document.getElementById('fileBanner');
+    if(fb){
+      fb.style.display='block';
+      // 배너 높이(약 34px)만큼 앱 영역 아래로
+      const app=document.querySelector('.app');
+      if(app) app.style.marginTop='34px';
+    }
+  }
+});
+
+(function(){
+  const sg=document.getElementById('strGrid');
+  G_LBL.forEach((l,i)=>{
+    const d=document.createElement('div');d.className='sc';d.id='sc'+i;
+    d.innerHTML='<div class="sc-name">'+l+'</div><div class="sc-hz" id="sh'+i+'">'+midi2f(G_MIDI[i]).toFixed(2)+' Hz</div><div class="sc-cts" id="sct'+i+'"></div>';
+    sg.appendChild(d);
+  });
+  try{const sl=localStorage.getItem('lang');if(sl&&I18N[sl])curLang=sl;}catch(_){}
+  buildPalette();buildPresetList();buildPresetModal();
+  loadSaved();if(!placed.length)applyPreset(PRESETS[0]);
+  setMode('bowl');
+  applyLang();
+  updateSnd();
+  window.addEventListener('resize',()=>requestAnimationFrame(rebuildCanvas));
+})();
+
+// ─── SOUND ENGINE SETTINGS ────────────────────────
+
+function updateSnd(){
+  sD=+document.getElementById('sndDecay').value;
+  sW=+document.getElementById('sndWarmth').value;
+  sR=+document.getElementById('sndReverb').value;
+  sV=+document.getElementById('sndVol').value;
+  sHPF=+document.getElementById('sndHPF').value;
+  document.getElementById('vDecay').textContent=sD+'s';
+  document.getElementById('vWarmth').textContent=Math.round(sW*100)+'%';
+  document.getElementById('vReverb').textContent=Math.round(sR*100)+'%';
+  document.getElementById('vVol').textContent=Math.round(sV*100)+'%';
+  document.getElementById('vHPF').textContent=sHPF+'Hz';
+  console.log('[SOUND] updateSnd', {sD, sW, sR, sV, sHPF}); // [DEBUG]
+}
+
+// Speaker presets — optimised EQ for each output device
+function setSpeakerPreset(type){
+  const presets={
+    laptop:{ decay:10, warmth:0.82, reverb:0.32, vol:0.85, hpf:70  },  // boost warmth, cut lows laptop can't do
+    bt:    { decay:13, warmth:0.65, reverb:0.42, vol:0.78, hpf:45  },  // more neutral, some low end
+    ear:   { decay:14, warmth:0.55, reverb:0.50, vol:0.72, hpf:35  },  // full range, more reverb, sparkle OK
+  };
+  const p=presets[type];if(!p)return;
+  document.getElementById('sndDecay').value=p.decay;
+  document.getElementById('sndWarmth').value=p.warmth;
+  document.getElementById('sndReverb').value=p.reverb;
+  document.getElementById('sndVol').value=p.vol;
+  document.getElementById('sndHPF').value=p.hpf;
+  // Highlight active button
+  ['spkLaptop','spkBT','spkEar'].forEach(id=>{
+    const btn=document.getElementById(id);if(!btn)return;
+    const isOn=(id==='spkLaptop'&&type==='laptop')||(id==='spkBT'&&type==='bt')||(id==='spkEar'&&type==='ear');
+    btn.style.borderColor=isOn?'#1a3a1a':'#1a1a1a';
+    btn.style.background=isOn?'#071507':'#0f0f0f';
+    btn.style.color=isOn?'#4CAF50':'#333';
+  });
+  updateSnd();
+}
+
+// ─── WARM TONE AUDIO ──────────────────────────────
+// Real Tibetan bowl harmonic ratios (measured): fundamental + inharmonic partials
+// Warmth blends soft-odd harmonics vs overtone sparkle
+
+function strikeBowl(id, freq){
+  stopBowlAudio(id);
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC){ showAudioErr('Web Audio not supported'); return; }
+  let ac;
+  try{ ac = new AC(); } catch(e){ showAudioErr('AudioContext failed'); return; }
+  const now = ac.currentTime;
+  const D = sD;
+
+  // master gain → destination (직접 연결, 효과 없음)
+  const master = ac.createGain();
+  master.gain.setValueAtTime(0, now);
+  master.gain.linearRampToValueAtTime(sV * 0.6, now + 0.02);
+  master.gain.setTargetAtTime(0.0001, now + 0.05, D / 3);
+  master.connect(ac.destination);
+
+  // analyser for waveform
+  const analyser = ac.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.8;
+  master.connect(analyser);
+
+  const nodes = [master, analyser];
+
+  // Tibetan bowl partials
+  [[1.000,1.00],[2.756,0.55],[5.179,0.28],[0.501,0.14]].forEach(([ratio, amp]) => {
+    const osc = ac.createOscillator();
+    const env = ac.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq * ratio;
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(amp, now + 0.02);
+    env.gain.setTargetAtTime(0.0001, now + 0.05, D / 3);
+    osc.connect(env);
+    env.connect(master);
+    osc.start(now);
+    osc.stop(now + D + 0.5);
+    nodes.push(osc, env);
+  });
+
+  const timer = setTimeout(() => {
+    nodes.forEach(n => { try{if(n.stop)n.stop();}catch(_){} try{n.disconnect();}catch(_){} });
+    try{ ac.close(); }catch(_){}
+    bowlAudio.delete(id);
+  }, (D + 1.5) * 1000);
+  bowlAudio.set(id, { nodes, timer, ac, analyser });
+}
+
+function makeWarmCurve(warmth){
+  const n=512,c=new Float32Array(n); // 512pt for smoother curve
+  for(let i=0;i<n;i++){
+    const x=(i*2/(n-1))-1;
+    // Tube-style soft saturation: asymmetric for warmth
+    const pos=x>=0?x*(27+x*x)/(27+9*x*x):x*(27+x*x*0.7)/(27+8*x*x);
+    // Low warmth = nearly linear, high warmth = soft tube saturation
+    c[i]=x*(1-warmth*0.6)+pos*warmth*0.6;
+  }
+  return c;
+}
+
+function stopBowlAudio(id){
+  const a = bowlAudio.get(id); if(!a) return;
+  clearTimeout(a.timer);
+  a.nodes.forEach(n => { try{if(n.stop)n.stop();}catch(_){} try{n.disconnect();}catch(_){} });
+  try{ if(a.ac) a.ac.close(); }catch(_){}
+  bowlAudio.delete(id);
+}
+
+// ─── WAVEFORM VISUALISER ─────────────────────────
+
+function setupWaveAnalyser(){
+  if(!waveAnalyser && actx){
+    waveAnalyser = actx.createAnalyser();
+    waveAnalyser.fftSize = 2048;
+    waveAnalyser.smoothingTimeConstant = 0.8;
+  }
+}
+
+function showWaveform(show){
+  const wrap=document.getElementById('waveformWrap');
+  wrap.style.display=show?'':'none';
+  if(show){
+    setupWaveAnalyser();
+    startWaveRaf();
+  }else{
+    stopWaveRaf();
+  }
+}
+
+function setWaveMode(m){
+  waveMode=m;
+  document.getElementById('wmWave').classList.toggle('on',m==='wave');
+  document.getElementById('wmSpec').classList.toggle('on',m==='spec');
+}
+
+function startWaveRaf(){
+  stopWaveRaf();
+  function frame(){
+    waveRaf=requestAnimationFrame(frame);
+    drawWave();
+  }
+  frame();
+}
+function stopWaveRaf(){if(waveRaf){cancelAnimationFrame(waveRaf);waveRaf=null;}}
+
+function drawWave(){
+  const canvas=document.getElementById('waveCanvas');
+  const wrap=document.getElementById('waveformWrap');
+  const W=wrap.clientWidth||600,H=56;
+  canvas.width=W;canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+
+  // Choose analyser: bowl audio analyser or mic analyser
+  const an=waveAnalyser||anlsr;if(!an)return;
+
+  if(waveMode==='wave'){
+    const buf=new Float32Array(an.fftSize);
+    an.getFloatTimeDomainData(buf);
+    ctx.beginPath();ctx.strokeStyle='#2a3a2a';ctx.lineWidth=1;
+    ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();
+    ctx.beginPath();ctx.lineWidth=1.5;
+    // Gradient colour based on amplitude
+    const grad=ctx.createLinearGradient(0,0,W,0);
+    grad.addColorStop(0,'#1a4a1a');grad.addColorStop(0.5,'#3CAF50');grad.addColorStop(1,'#1a4a1a');
+    ctx.strokeStyle=grad;
+    const step=W/buf.length;
+    buf.forEach((v,i)=>{
+      const x=i*step,y=H/2-v*(H*0.42);
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  }else{
+    // Spectrum
+    const fftSize=1024;an.fftSize=fftSize;
+    const buf=new Uint8Array(an.frequencyBinCount);
+    an.getByteFrequencyData(buf);
+    const bins=Math.min(buf.length,W);
+    const barW=Math.max(1,W/bins);
+    for(let i=0;i<bins;i++){
+      const v=buf[Math.floor(i*buf.length/bins)]/255;
+      const h=v*H;
+      const hue=120+v*60; // green to yellow
+      ctx.fillStyle='hsla('+hue+',80%,35%,'+(0.4+v*0.6)+')';
+      ctx.fillRect(i*barW,H-h,barW-1,h);
+    }
+  }
+}
+
+// Hook bowl audio to wave analyser
+function connectToWave(masterNode){
+  setupWaveAnalyser();
+  try{masterNode.connect(waveAnalyser);}catch(_){}
+}
+
+// Patch strikeBowl to also feed waveAnalyser
+const _origStrike=strikeBowl;
+// (already connects via actx — we tap destination-side via AnalyserNode hooked in setupWaveAnalyser)
+
+// ─── PALETTE ─────────────────────────────────────
+function buildPalette(){
+  const w=document.getElementById('paletteWrap');w.innerHTML='';
+  OCTS.forEach(oct=>{
+    const g=document.createElement('div');g.className='pal-oct-grp';
+    const l=document.createElement('div');l.className='pal-oct-lbl';l.textContent='OCT '+oct;l.setAttribute('data-oct-lbl',oct);g.appendChild(l);
+    const r=document.createElement('div');r.className='pal-row';
+    NAT.forEach(note=>{
+      const b=document.createElement('button');b.className='pal-btn';b.id='pb-'+note+oct;
+      const c=NC[note];b.style.cssText='border-color:'+c+'33;color:'+c;
+      b.innerHTML='<span class="pn">'+note+'</span><span class="po">'+oct+'</span>';
+      b.title=note+oct+' · '+noteHz(note,oct).toFixed(1)+' Hz';
+      b.onclick=()=>toggleBowl(note,oct);r.appendChild(b);
+    });
+    g.appendChild(r);w.appendChild(g);
+  });
+  refreshPalette();
+}
+function refreshPalette(){
+  OCTS.forEach(o=>NAT.forEach(n=>{
+    const b=document.getElementById('pb-'+n+o);if(!b)return;
+    const on=placed.some(x=>x.note===n&&x.oct===o);
+    b.classList.toggle('active',on);b.classList.toggle('inactive',!on);
+  }));
+}
+function toggleBowl(note,oct){
+  const ex=placed.find(b=>b.note===note&&b.oct===oct);
+  if(ex)removeBowl(ex.id);else addBowl(note,oct);
+}
+
+// ─── BOWL MANAGEMENT ─────────────────────────────
+function addBowl(note,oct,xP,yP){
+  const id=++bid;
+  if(xP===undefined){
+    const cv=document.getElementById('bowlCanvas');
+    const cw=cv.clientWidth||800,ch=cv.clientHeight||400,d=bowlDia(oct);
+    let best={x:50,y:50},bestD=-1;
+    for(let i=0;i<140;i++){
+      const tx=8+Math.random()*84,ty=8+Math.random()*82;
+      if(tx<d/2/cw*100+2||tx>100-d/2/cw*100-2||ty<d/2/ch*100+2||ty>100-d/2/ch*100-2)continue;
+      let minD=Infinity;
+      placed.forEach(b=>{const dx=(tx-b.x)/100*cw,dy=(ty-b.y)/100*ch;minD=Math.min(minD,Math.sqrt(dx*dx+dy*dy)-(bowlDia(b.oct)+d)/2);});
+      if(minD>bestD){bestD=minD;best={x:tx,y:ty};}
+    }
+    xP=best.x;yP=best.y;
+  }
+  placed.push({note,oct,x:xP,y:yP,id});
+  rebuildCanvas();savePlaced();refreshPalette();updateOnboard();
+  showWaveform(true);
+}
+function removeBowl(id){
+  placed=placed.filter(b=>b.id!==id);
+  seqItems=seqItems.filter(s=>s.bowlId!==id);
+  stopBowlAudio(id);
+  if(selId===id){selId=-1;resetInfoBar();}
+  rebuildCanvas();renderSeqList();savePlaced();refreshPalette();
+  updateSeqBtns();updateOnboard();
+  if(!placed.length)showWaveform(false);
+}
+function applyPreset(p){
+  placed=[];bid=0;seqItems=[];stopSeqPlay();
+  p.bowls.forEach(({n,o},i)=>{
+    const[px,py]=p.pos[i]||[20+i*10,55];
+    placed.push({note:n,oct:o,x:px,y:py,id:++bid});
+  });
+  if(p.seq)p.seq.forEach(i=>{const b=placed[i];if(b)seqItems.push({bowlId:b.id,note:b.note,oct:b.oct});});
+  seqInt=p.seqInt||5000;
+  document.getElementById('spdVal').textContent=(seqInt/1000)+'s';
+  rebuildCanvas();renderSeqList();updateSeqBtns();
+  savePlaced();refreshPalette();updateOnboard();showWaveform(true);
+  document.querySelectorAll('.preset-btn,.pm-card').forEach(el=>el.classList.toggle('on',el.dataset.pid===p.id));
+}
+function updateOnboard(){const h=document.getElementById('onboardHint');if(h)h.style.opacity=placed.length?'0':'1';}
+
+// ─── PRESET UI ────────────────────────────────────
+function buildPresetList(){
+  const w=document.getElementById('presetList');w.innerHTML='';
+  PRESETS.slice(0,4).forEach(p=>{
+    const b=document.createElement('button');b.className='preset-btn';b.dataset.pid=p.id;
+    b.innerHTML='<div class="pb-head"><span>'+p.icon+'</span>'+t('pn_'+p.id)+'</div>'+
+      '<div class="pb-desc">'+t('pb_'+p.id)+'</div>';
+    b.onclick=()=>applyPreset(p);w.appendChild(b);
+  });
+}
+function buildPresetModal(){
+  // Cat tabs
+  const ct=document.getElementById('catTabs');ct.innerHTML='';
+  CATS.forEach(c=>{
+    const b=document.createElement('button');b.className='cat-tab'+(c.id==='all'?' on':'');
+    b.textContent=t(c.labelKey);b.dataset.cid=c.id;
+    b.onclick=()=>filterCat(c.id);ct.appendChild(b);
+  });
+  renderModalPresets('all');
+}
+function filterCat(cid){
+  activeCat=cid;
+  document.querySelectorAll('.cat-tab').forEach(el=>el.classList.toggle('on',el.dataset.cid===cid));
+  renderModalPresets(cid);
+}
+function renderModalPresets(cid){
+  const w=document.getElementById('pmGrid');w.innerHTML='';
+  const list=cid==='all'?PRESETS:PRESETS.filter(p=>p.cat===cid);
+  list.forEach(p=>{
+    const c=document.createElement('div');c.className='pm-card';c.dataset.pid=p.id;
+    const chips=p.bowls.map(({n,o})=>'<span class="pm-chip" style="color:'+NC[n]+';border-color:'+NC[n]+'44;background:'+NC[n]+'11">'+n+o+'</span>').join('');
+    c.innerHTML='<div class="pm-card-head">'+
+      '<span class="pm-card-icon">'+p.icon+'</span>'+
+      '<span class="pm-card-name">'+t('pn_'+p.id)+'</span>'+
+      '<span class="pm-card-tag" style="color:'+p.tagCol+';border-color:'+p.tagCol+'44;background:'+p.tagCol+'11">'+p.tag+'</span>'+
+      '</div>'+
+      '<div class="pm-card-bowls">'+chips+'</div>'+
+      '<div class="pm-card-desc">'+p.desc+'</div>'+
+      '<div class="pm-card-benefit" style="color:'+p.tagCol+';background:'+p.benefitCol+'">🎯 '+t('pb_'+p.id)+'</div>';
+    c.onclick=()=>{applyPreset(p);hidePresetModal();};
+    w.appendChild(c);
+  });
+}
+function showPresetModal(){document.getElementById('presetModal').style.display='flex';}
+function hidePresetModal(){document.getElementById('presetModal').style.display='none';}
+
+// ─── CANVAS ───────────────────────────────────────
+function bowlDia(o){return{2:94,3:80,4:66,5:54}[o]||66;}
+function rebuildCanvas(){
+  const cv=document.getElementById('bowlCanvas');
+  cv.querySelectorAll('.bwl').forEach(e=>e.remove());
+  placed.forEach(b=>mkBowl(b,cv));
+}
+function mkBowl(b,cv){
+  const d=bowlDia(b.oct),col=NC[b.note]||'#888';
+  const el=document.createElement('div');el.className='bwl';el.id='bwl'+b.id;
+  el.style.cssText='width:'+d+'px;height:'+d+'px;left:calc('+b.x+'% - '+d/2+'px);top:calc('+b.y+'% - '+d/2+'px);background:'+hexA(col,.12)+';border:1.5px solid '+col+'44;--ck:'+col;
+  const nn=document.createElement('div');nn.className='bwl-note';nn.textContent=b.note+b.oct;el.appendChild(nn);
+  const sq=document.createElement('div');sq.className='bwl-seq';sq.id='bwlseq'+b.id;el.appendChild(sq);
+  const ck=CK.find(c=>c.n===b.note);
+  const lb=document.createElement('div');lb.className='bwl-lbl';
+  lb.textContent=(ck?ckName(ck)+'\n':'')+noteHz(b.note,b.oct).toFixed(1)+' Hz';el.appendChild(lb);
+  el.addEventListener('pointerdown',e=>onBDown(e,b.id),{passive:false});
+  cv.appendChild(el);
+  if(b.id===selId)el.classList.add('sel');
+  updSeqBadge(b.id);
+}
+function updSeqBadge(id){
+  const el=document.getElementById('bwlseq'+id);if(!el)return;
+  const i=seqItems.findIndex(s=>s.bowlId===id);
+  const be=document.getElementById('bwl'+id);
+  if(i>=0){el.textContent=i+1;be?.classList.add('seq-active');}
+  else{el.textContent='';be?.classList.remove('seq-active');}
+}
+
+// ─── BOWL INTERACTION ─────────────────────────────
+function onBDown(e,id){
+  e.preventDefault();
+  const el=document.getElementById('bwl'+id);el.setPointerCapture(e.pointerId);
+  const b=placed.find(x=>x.id===id);if(!b)return;
+  const cv=document.getElementById('bowlCanvas'),cr=cv.getBoundingClientRect();
+  const d=bowlDia(b.oct),ox=(b.x/100)*cr.width,oy=(b.y/100)*cr.height;
+  const sx=e.clientX,sy=e.clientY;let moved=false,lp=false;
+  const lt=setTimeout(()=>{if(!moved&&editMode){lp=true;openOctPopup(id);}},500);
+  const onM=ev=>{
+    const dx=ev.clientX-sx,dy=ev.clientY-sy;if(Math.sqrt(dx*dx+dy*dy)<5)return;
+    moved=true;clearTimeout(lt);
+    el.classList.add('dragging');
+    const nx=Math.max(d/2,Math.min(cr.width-d/2,ox+dx));
+    const ny=Math.max(d/2,Math.min(cr.height-d/2,oy+dy));
+    b.x=(nx/cr.width)*100;b.y=(ny/cr.height)*100;
+    el.style.left='calc('+b.x+'% - '+d/2+'px)';el.style.top='calc('+b.y+'% - '+d/2+'px)';
+  };
+  const onU=()=>{
+    clearTimeout(lt);el.removeEventListener('pointermove',onM);el.removeEventListener('pointerup',onU);
+    el.classList.remove('dragging');
+    if(moved){savePlaced();return;}
+    if(!lp&&!moved)onBTap(id);
+  };
+  el.addEventListener('pointermove',onM,{passive:false});el.addEventListener('pointerup',onU);
+}
+function onBTap(id){
+  if(navigator.vibrate) navigator.vibrate(10);
+  const b = placed.find(x => x.id === id); if(!b) return;
+  strikeBowl(id, noteHz(b.note, b.oct));
+  feedWaveFromBowl(id);
+  spawnRipple(id);
+  selBowl(id);
+  showWaveform(true);
+}
+function feedWaveFromBowl(id){
+  const a = bowlAudio.get(id);
+  if(a && a.analyser) waveAnalyser = a.analyser;
+}
+function selBowl(id){
+  selId=id;document.querySelectorAll('.bwl').forEach(e=>e.classList.remove('sel'));
+  document.getElementById('bwl'+id)?.classList.add('sel');
+  const b=placed.find(x=>x.id===id);if(!b)return;
+  const col=NC[b.note]||'#888',ck=CK.find(c=>c.n===b.note);
+  const bar=document.getElementById('bowlInfoBar');
+  bar.style.borderColor=col+'66';bar.style.background=hexA(col,.04);
+  document.getElementById('bibSym').textContent=ck?ck.sym:'🎵';
+  const nm=document.getElementById('bibName');nm.style.color=col;
+  nm.textContent=(ck?ckName(ck)+' — ':'')+b.note+b.oct;
+  document.getElementById('bibSub').textContent=noteHz(b.note,b.oct).toFixed(2)+' Hz'+(ck?' · '+ck.in:'');
+  setBgGlow(b.note);
+}
+function resetInfoBar(){
+  document.getElementById('bowlInfoBar').style.cssText='';
+  document.getElementById('bibSym').textContent='🎵';
+  document.getElementById('bibName').style.color='#1c1c1c';
+  document.getElementById('bibName').textContent=t('choosePreset');
+  document.getElementById('bibSub').textContent='';
+}
+function spawnRipple(id){
+  const el=document.getElementById('bwl'+id);if(!el)return;
+  el.querySelectorAll('.b-ring').forEach(r=>r.remove());
+  const col=NC[placed.find(b=>b.id===id)?.note]||'#fff';
+  [0,160,320].forEach(ms=>{
+    const r=document.createElement('div');r.className='b-ring';
+    r.style.cssText='animation-delay:'+ms+'ms;--ck:'+col;
+    el.appendChild(r);setTimeout(()=>{if(r.parentNode)r.remove();},1000+ms);
+  });
+  el.style.boxShadow='0 0 38px 9px '+col+'44';setTimeout(()=>{el.style.boxShadow='';},1100);
+  const ring=document.getElementById('bibRing');ring.style.display='flex';
+  clearTimeout(ring._t);ring._t=setTimeout(()=>ring.style.display='none',(sD+2)*1000);
+}
+
+// ─── EDIT MODE ────────────────────────────────────
+function toggleEdit(){
+  editMode=!editMode;
+  const btn=document.getElementById('editBtn');btn.classList.toggle('on',editMode);
+  btn.textContent=editMode?t('done'):t('edit');
+  document.getElementById('resetBtn').style.display=editMode?'':'none';
+  document.querySelectorAll('.bwl').forEach(el=>{
+    let rb=el.querySelector('.bwl-rm');const id=+el.id.replace('bwl','');
+    if(editMode&&!rb){
+      rb=document.createElement('div');rb.className='bwl-rm';rb.textContent='✕';
+      rb.style.cssText='position:absolute;top:-5px;left:-5px;width:16px;height:16px;border-radius:50%;background:#110808;border:1px solid #ff3333;color:#ff3333;font-size:7.5px;font-weight:900;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;';
+      rb.addEventListener('pointerdown',ev=>{ev.stopPropagation();removeBowl(id);});
+      el.appendChild(rb);
+    }else if(!editMode&&rb)rb.remove();
+  });
+}
+function resetLayout(){
+  const pid=document.querySelector('.pm-card.on,.preset-btn.on')?.dataset.pid;
+  const p=PRESETS.find(x=>x.id===pid)||PRESETS[0];applyPreset(p);
+}
+function toggleSidebar(){
+  if(window.innerWidth<=720){openMobDrawer();return;}
+  const app=document.querySelector('.app');
+  app.classList.toggle('sb-hidden');
+  const btn=document.getElementById('sbToggleBtn');
+  btn.style.color=app.classList.contains('sb-hidden')?'#ccc':'#555';
+}
+function openMobDrawer(){
+  const sb=document.querySelector('.sidebar');
+  const bd=document.getElementById('mobDrawerBackdrop');
+  sb.classList.add('mob-open');bd.style.display='block';
+  document.getElementById('sbToggleBtn').style.color='#ccc';
+}
+function closeMobDrawer(){
+  const sb=document.querySelector('.sidebar');
+  const bd=document.getElementById('mobDrawerBackdrop');
+  sb.classList.remove('mob-open');bd.style.display='none';
+  document.getElementById('sbToggleBtn').style.color='#555';
+}
+let canvasFS=false;
+function toggleCanvasFS(){
+  canvasFS=!canvasFS;
+  const cv=document.getElementById('bowlCanvas');
+  const btn=document.getElementById('fsBtn');
+  cv.classList.toggle('fs-mode',canvasFS);
+  btn.textContent=canvasFS?'✕':'⛶';
+  btn.classList.toggle('on',canvasFS);
+  if(canvasFS){
+    const esc=e=>{if(e.key==='Escape'){canvasFS=false;cv.classList.remove('fs-mode');btn.textContent='⛶';btn.classList.remove('on');document.removeEventListener('keydown',esc);}};
+    document.addEventListener('keydown',esc);
+  }
+  requestAnimationFrame(rebuildCanvas);
+}
+
+// ─── SEQUENCER ────────────────────────────────────
+function seqAddSel(){
+  if(selId<0){
+    const nm=document.getElementById('bibName'),ot=nm.textContent,oc=nm.style.color;
+    nm.textContent=t('tapBowlFirst');nm.style.color='#FF8C00';
+    setTimeout(()=>{nm.textContent=ot;nm.style.color=oc;},1400);return;
+  }
+  const b=placed.find(x=>x.id===selId);if(!b)return;
+  seqItems.push({bowlId:b.id,note:b.note,oct:b.oct});
+  renderSeqList();updSeqBadge(b.id);updateSeqBtns();
+}
+function seqRemove(i){const bid=seqItems[i]?.bowlId;seqItems.splice(i,1);renderSeqList();if(bid!=null)updSeqBadge(bid);updateSeqBtns();}
+function seqClear(){stopSeqPlay();seqItems=[];renderSeqList();placed.forEach(b=>updSeqBadge(b.id));updateSeqBtns();}
+function updateSeqBtns(){
+  const h=seqItems.length>0;
+  document.getElementById('seqPlayBtn').style.display=h?'':'none';
+  document.getElementById('seqClrBtn').style.display=h?'':'none';
+  document.getElementById('seqSpd').style.display=h?'':'none';
+}
+function renderSeqList(){
+  const w=document.getElementById('seqList');w.innerHTML='';
+  if(!seqItems.length){w.innerHTML='<span class="seq-empty">'+t('seqEmpty')+'</span>';return;}
+  seqItems.forEach((s,i)=>{
+    const col=NC[s.note]||'#888';
+    const d=document.createElement('div');d.className='seq-item';d.id='seqi'+i;
+    d.innerHTML='<div class="si-dot" style="background:'+col+'"></div><span class="si-txt">'+s.note+s.oct+'</span>'+
+      '<span class="si-del" onclick="seqRemove('+i+');event.stopPropagation()">✕</span>';
+    d.onclick=()=>{const b=placed.find(x=>x.id===s.bowlId);if(!b)return;ensureActx();strikeBowl(b.id,noteHz(b.note,b.oct));spawnRipple(b.id);selBowl(b.id);setTimeout(()=>feedWaveFromBowl(b.id),30);};
+    w.appendChild(d);
+  });
+}
+function toggleSeqPlay(){if(seqPlay)stopSeqPlay();else startSeqPlay();}
+function startSeqPlay(){
+  if(!seqItems.length)return;seqPlay=true;seqIdx=0;
+  document.getElementById('seqPlayBtn').textContent=t('stopSeq');
+  document.getElementById('seqPlayBtn').classList.add('on');playStep();
+}
+function stopSeqPlay(){
+  seqPlay=false;if(seqTmr){clearTimeout(seqTmr);seqTmr=null;}
+  document.getElementById('seqPlayBtn').textContent=t('playSeq');
+  document.getElementById('seqPlayBtn').classList.remove('on');
+  document.querySelectorAll('.seq-item').forEach(el=>el.classList.remove('playing'));
+}
+function playStep(){
+  if(!seqPlay)return;
+  const s=seqItems[seqIdx];
+  if(!s){seqIdx=0;seqTmr=setTimeout(playStep,200);return;}
+  document.querySelectorAll('.seq-item').forEach(el=>el.classList.remove('playing'));
+  document.getElementById('seqi'+seqIdx)?.classList.add('playing');
+  const b=placed.find(x=>x.id===s.bowlId);
+  if(b){
+    ensureActx();
+    strikeBowl(b.id,noteHz(b.note,b.oct));
+    spawnRipple(b.id);selBowl(b.id);
+    setTimeout(()=>feedWaveFromBowl(b.id),30);
+  }
+  seqIdx=(seqIdx+1)%seqItems.length;seqTmr=setTimeout(playStep,seqInt);
+}
+function adjInt(d){seqInt=Math.max(1000,Math.min(20000,seqInt+d));document.getElementById('spdVal').textContent=(seqInt/1000)+'s';}
+
+// ─── OCTAVE POPUP ─────────────────────────────────
+function openOctPopup(id){
+  popId=id;const b=placed.find(x=>x.id===id);if(!b)return;
+  const ck=CK.find(c=>c.n===b.note);
+  document.getElementById('octSym').textContent=ck?ck.sym:'🎵';
+  document.getElementById('octTitle').textContent=b.note+(ck?' — '+ckName(ck):'');
+  document.getElementById('octSub').textContent=ck?.in||'';
+  const w=document.getElementById('octBtns');w.innerHTML='';
+  OCTS.forEach(o=>{
+    const btn=document.createElement('button');btn.className='oct-btn'+(o===b.oct?' on':'');
+    btn.textContent=o;btn.onclick=()=>setPopOct(o);w.appendChild(btn);
+  });
+  document.getElementById('octHz').textContent=b.note+b.oct+' · '+noteHz(b.note,b.oct).toFixed(2)+' Hz';
+  document.getElementById('octPopup').style.display='flex';
+}
+function setPopOct(oct){
+  const b=placed.find(x=>x.id===popId);if(!b)return;b.oct=oct;
+  seqItems.filter(s=>s.bowlId===b.id).forEach(s=>s.oct=oct);
+  rebuildCanvas();renderSeqList();savePlaced();refreshPalette();
+  document.querySelectorAll('#octBtns .oct-btn').forEach((btn,i)=>btn.classList.toggle('on',OCTS[i]===oct));
+  document.getElementById('octHz').textContent=b.note+b.oct+' · '+noteHz(b.note,b.oct).toFixed(2)+' Hz';
+}
+function closeOctPopup(){document.getElementById('octPopup').style.display='none';popId=-1;}
+
+// ─── PERSISTENCE ──────────────────────────────────
+function savePlaced(){try{localStorage.setItem('pl4',JSON.stringify(placed));localStorage.setItem('bid4',bid);}catch(_){}}
+function loadSaved(){try{const s=localStorage.getItem('pl4');if(s){placed=JSON.parse(s);bid=+(localStorage.getItem('bid4')||0)||placed.length;}}catch(_){}}
+
+// ─── MODE / TAB ───────────────────────────────────
+function setMode(m){
+  mode=m;
+  document.getElementById('mBowl').classList.toggle('on',m==='bowl');
+  document.getElementById('mGuitar').classList.toggle('on',m==='guitar');
+  document.getElementById('bowlPanel').style.display=m==='bowl'?'flex':'none';
+  document.getElementById('guitarPanel').style.display=m==='guitar'?'flex':'none';
+  document.getElementById('sbBowlTabs').style.display=m==='bowl'?'flex':'none';
+  document.getElementById('sideGuitarArea').style.display=m==='guitar'?'':'none';
+  const mc=document.getElementById('mobCtrl');
+  const mbt=document.getElementById('mobBowlTabs');
+  const mac=document.getElementById('mobAutoCtrl');
+  const mrc=document.getElementById('mobRefCtrl');
+  if(mc){
+    if(m==='bowl'){
+      mc.style.display='';if(mbt)mbt.style.display='';
+    }else{
+      mc.style.display='';if(mbt)mbt.style.display='none';
+      if(mac)mac.style.display='';if(mrc)mrc.style.display='none';
+    }
+  }
+  if(m==='bowl'){
+    setBowlTab(bowlTab);setTimeout(()=>{rebuildCanvas();updateOnboard();},60);
+    if(placed.length)showWaveform(true);
+  }else{
+    document.getElementById('sideAutoArea').style.display='none';
+    document.getElementById('sideRefArea').style.display='none';
+    showWaveform(listening);
+  }
+  setBgGlow(null);resetDisp();
+}
+function setBowlTab(tb){
+  bowlTab=tb;
+  document.getElementById('tabAuto').classList.toggle('on',tb==='auto');
+  document.getElementById('tabRef').classList.toggle('on',tb==='ref');
+  const ma=document.getElementById('mobTabAuto');if(ma)ma.classList.toggle('on',tb==='auto');
+  const mr=document.getElementById('mobTabRef');if(mr)mr.classList.toggle('on',tb==='ref');
+  document.getElementById('autoPanel').style.display=tb==='auto'?'':'none';
+  document.getElementById('refPanel').style.display=tb==='ref'?'flex':'none';
+  document.getElementById('sideAutoArea').style.display=tb==='auto'?'':'none';
+  document.getElementById('sideRefArea').style.display=tb==='ref'?'flex':'none';
+  const mac=document.getElementById('mobAutoCtrl');if(mac)mac.style.display=tb==='auto'?'':'none';
+  const mrc=document.getElementById('mobRefCtrl');if(mrc)mrc.style.display=tb==='ref'?'':'none';
+  if(tb==='ref'&&listening)stopListening();
+  if(tb!=='ref')setBgGlow(null);
+  if(tb==='ref')setTimeout(()=>{rebuildCanvas();updateOnboard();showWaveform(placed.length>0);},60);
+  if(tb==='auto')showWaveform(listening);
+}
+function setBgGlow(note){
+  const el=document.getElementById('bgGlow');
+  if(!note){el.style.opacity='0';return;}
+  el.style.background='radial-gradient(ellipse 80% 60% at 50% 10%,'+NC[note]+' 0%,transparent 70%)';
+  el.style.opacity='0.08';
+}
+
+// ─── REF PITCH ────────────────────────────────────
+function setRef(hz){
+  refA=hz;
+  document.getElementById('btn440').classList.toggle('on',hz===440);
+  document.getElementById('btn432').classList.toggle('on',hz===432);
+  G_MIDI.forEach((m,i)=>{const e=document.getElementById('sh'+i);if(e)e.textContent=midi2f(m).toFixed(2)+' Hz';});
+}
+
+// ─── MICROPHONE ───────────────────────────────────
+function toggleListen(){if(listening)stopListening();else startListening();}
+async function startListening(){
+  console.log('[TUNER] startListening called', {actx, listening}); // [DEBUG]
+  if(!navigator.mediaDevices?.getUserMedia){
+    setStat('⚠ getUserMedia 미지원 — file:// 또는 구형 브라우저');return;
+  }
+  try{
+    ensureActx();
+    if(!actx){setStat('⚠ AudioContext 생성 실패');return;}
+    if(actx.state==='suspended') await actx.resume();
+    // ① sampleRate 정상 여부
+    if(!actx.sampleRate||actx.sampleRate<8000){
+      setStat('⚠ sampleRate 비정상: '+actx.sampleRate+'Hz');return;
+    }
+    // ② getUserMedia — 실패 시 상세 오류 표시
+    let stream;
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    }catch(e1){
+      try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}
+      catch(e2){setStat('⚠ 마이크 오류 ['+e2.name+']: '+e2.message);return;}
+    }
+    mStream=stream;
+    console.log('[TUNER] mic stream OK', stream.getAudioTracks()); // [DEBUG]
+    const src=actx.createMediaStreamSource(mStream);
+    anlsr=actx.createAnalyser();anlsr.fftSize=2048;anlsr.smoothingTimeConstant=0;src.connect(anlsr);
+    waveAnalyser=anlsr;
+    listening=true;setSBtn(true);setStat('<span class="dot"></span>'+t('listening'));
+    showWaveform(true);loop();
+    // ③ 1초 후 RMS 체크 — 신호 없으면 경고
+    setTimeout(()=>{
+      if(!listening||!anlsr)return;
+      const cb=new Float32Array(anlsr.fftSize);anlsr.getFloatTimeDomainData(cb);
+      let r=0;for(let i=0;i<cb.length;i++)r+=cb[i]*cb[i];r=Math.sqrt(r/cb.length);
+      if(r<0.0001)setStat('⚠ 마이크 신호 없음 (RMS≈0) — 마이크 연결·선택 확인');
+    },1000);
+  }catch(e){setStat('⚠ 마이크 오류 ['+e.name+']: '+e.message);}
+}
+function stopListening(){
+  if(raf){cancelAnimationFrame(raf);raf=null;}
+  if(mStream){mStream.getTracks().forEach(t=>t.stop());mStream=null;}
+  anlsr=null;listening=false;smF=-1;lastVF=-1;
+  setSBtn(false);setStat(t('micPrompt'));resetDisp();
+  if(!placed.length)showWaveform(false);
+}
+function setSBtn(on){
+  ['startBtn','startBtnB','mobStartBtn'].forEach(id=>{const b=document.getElementById(id);if(!b)return;b.textContent=on?t('stopListening'):t('startListening');b.classList.toggle('on',on);});
+}
+function setStat(h){['statusTxt','statusTxtB','mobStatusTxt'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=h;});}
+function ensureActx(){
+  if(!actx){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC){showAudioErr('Web Audio API not supported.');return;}
+    try{actx=new AC({sampleRate:44100});}
+    catch(e){try{actx=new AC();}catch(e2){showAudioErr('AudioContext blocked: '+e2.message);return;}}
+  }
+  if(actx.state==='suspended') actx.resume();
+}
+
+function showAudioErr(msg){
+  const nm=document.getElementById('bibName');
+  if(nm){const ot=nm.textContent,oc=nm.style.color;nm.textContent='⚠ '+msg;nm.style.color='#ff6644';setTimeout(()=>{nm.textContent=ot;nm.style.color=oc;},3500);}
+  console.warn('[Audio]',msg);
+}
+
+// ─── DETECTION LOOP ───────────────────────────────
+function loop(){
+  if(!window._loopLogged){console.log('[TUNER] loop started, sampleRate=',actx.sampleRate);window._loopLogged=true;} // [DEBUG]
+  raf=requestAnimationFrame(loop);if(!anlsr)return;
+  const buf=new Float32Array(anlsr.fftSize);anlsr.getFloatTimeDomainData(buf);
+  let rms=0;for(let i=0;i<buf.length;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/buf.length);
+  if(rms<NG){if(lastVF>0&&Date.now()-lastDetT<HOLD)return;resetDisp();lastVF=-1;return;}
+  const minHz=mode==='guitar'?60:100,maxHz=mode==='guitar'?400:1200;
+  const raw=yin(buf,actx.sampleRate,minHz,maxHz);
+  if(raw<0||yConf>0.20){if(lastVF>0&&Date.now()-lastDetT<HOLD)return;resetDisp();lastVF=-1;return;}
+  const freq=doSmooth(raw);lastVF=freq;lastDetT=Date.now();updateDisp(freq);
+}
+function doSmooth(f){if(smF<0){smF=f;return f;}if(Math.abs(1200*Math.log2(f/smF))>180){smF=f;return f;}smF=SM*f+(1-SM)*smF;return smF;}
+function yin(buf,sr,minHz,maxHz){
+  const N=buf.length,W=N>>1,tMin=Math.max(2,Math.floor(sr/maxHz)),tMax=Math.min(W-1,Math.floor(sr/minHz));
+  const d=new Float32Array(tMax+1);
+  for(let tau=1;tau<=tMax;tau++){let s=0;for(let j=0;j<W;j++){const x=buf[j]-buf[j+tau];s+=x*x;}d[tau]=s;}
+  const c=new Float32Array(tMax+1);c[0]=1;let run=0;
+  for(let tau=1;tau<=tMax;tau++){run+=d[tau];c[tau]=run===0?0:d[tau]*tau/run;}
+  const T=0.15;
+  for(let tau=tMin;tau<tMax-1;tau++){if(c[tau]<T){while(tau+1<tMax&&c[tau+1]<c[tau])tau++;yConf=c[tau];return sr/parab(c,tau);}}
+  let mv=Infinity,mt=tMin;for(let t=tMin;t<=tMax;t++){if(c[t]<mv){mv=c[t];mt=t;}}
+  yConf=mv;return mv<0.35?sr/parab(c,mt):-1;
+}
+function parab(a,t){if(t<=0||t>=a.length-1)return t;const s0=a[t-1],s1=a[t],s2=a[t+1],d=2*s1-s0-s2;return Math.abs(d)<1e-10?t:t+(s0-s2)/(2*d);}
+
+// ─── DISPLAY ──────────────────────────────────────
+function updateDisp(freq){
+  const{oct,cts,name}=noteInfo(freq);const col=tuneCol(cts),sign=cts>=0?'+':'';
+  if(mode==='guitar'){
+    const eL=document.getElementById('nLetter');eL.textContent=name[0];eL.style.color=col;
+    document.getElementById('nAcc').textContent=name.length>1?'♯':'';document.getElementById('nAcc').style.color=col;
+    document.getElementById('nOct').textContent=oct;
+    document.getElementById('nHz').textContent=freq.toFixed(1)+' Hz';
+    const eC=document.getElementById('nCents');eC.textContent=sign+cts+'¢';eC.style.color=col;
+    setNeedle(cts,col);updGuitar(freq);
+  }else{updBowlAuto(freq,cts);}
+}
+function setNeedle(cts,col){
+  const cl=Math.max(-50,Math.min(50,cts)),ab=Math.abs(cl);
+  document.getElementById('mNeedle').style.left=(cl+50)+'%';document.getElementById('mNeedle').style.background=col;
+  const f=document.getElementById('mFill');
+  if(cl>=0){f.style.left='50%';f.style.width=ab+'%';}else{f.style.left=(50-ab)+'%';f.style.width=ab+'%';}
+  f.style.background=col;
+}
+function updGuitar(freq){
+  const fm=f2midi(freq);let ci=0,cd=Infinity;
+  G_MIDI.forEach((m,i)=>{const dd=Math.abs(fm-m);if(dd<cd){cd=dd;ci=i;}});
+  G_MIDI.forEach((m,i)=>{
+    const card=document.getElementById('sc'+i),ct=document.getElementById('sct'+i);
+    card.classList.remove('closest','in-tune');ct.textContent='';ct.style.color='';
+    if(i===ci){const diff=Math.round((fm-m)*100),sign=diff>=0?'+':'',col=tuneCol(diff);ct.textContent=sign+diff+'¢';ct.style.color=col;card.classList.add(Math.abs(diff)<=5?'in-tune':'closest');}
+  });
+}
+function updBowlAuto(freq,cts){
+  const fm=f2midi(freq),midi=Math.round(fm),ni=((midi%12)+12)%12,nName=NOTES[ni];
+  const ck=CK.find(c=>c.n===nName.replace('#',''));
+  const col=tuneCol(cts),sign=cts>=0?'+':'',inTune=Math.abs(cts)<=10;
+  const sym=document.getElementById('autoSym');sym.textContent=ck?ck.sym:nName;sym.classList.toggle('in-tune',inTune);
+  const nm=document.getElementById('autoCkName');nm.textContent=ck?ckName(ck):nName;nm.style.color=ck?ck.col:col;
+  document.getElementById('autoNoteLine').textContent=nName+(Math.floor(midi/12)-1)+' · '+freq.toFixed(1)+' Hz  '+sign+cts+'¢';
+  if(ck)setBgGlow(ck.n);
+  const angle=(Math.max(-50,Math.min(50,cts))/50)*70;
+  const needle=document.getElementById('arcNeedle');needle.style.transform='rotate('+angle+'deg)';needle.style.stroke=col;needle.style.filter='drop-shadow(0 0 4px '+col+')';
+  document.getElementById('arcCents').textContent=sign+cts+'¢';document.getElementById('arcCents').style.color=col;
+}
+function resetDisp(){
+  const eL=document.getElementById('nLetter');if(eL){eL.textContent='—';eL.style.color='#181818';}
+  ['nAcc','nOct'].forEach(id=>{const e=document.getElementById(id);if(e){e.textContent='';e.style.color='';}});
+  const nh=document.getElementById('nHz');if(nh)nh.textContent='— Hz';
+  const nc=document.getElementById('nCents');if(nc){nc.textContent='';nc.style.color='transparent';}
+  const mn=document.getElementById('mNeedle');if(mn){mn.style.left='50%';mn.style.background='#888';}
+  const mf=document.getElementById('mFill');if(mf){mf.style.width='0';mf.style.left='50%';}
+  G_MIDI.forEach((_,i)=>{const c=document.getElementById('sc'+i);if(c)c.classList.remove('closest','in-tune');const ct=document.getElementById('sct'+i);if(ct){ct.textContent='';ct.style.color='';}});
+  const sym=document.getElementById('autoSym');if(sym){sym.textContent='○';sym.classList.remove('in-tune');}
+  const an=document.getElementById('autoCkName');if(an){an.textContent='—';an.style.color='';}
+  const al=document.getElementById('autoNoteLine');if(al)al.textContent='—';
+  const needle=document.getElementById('arcNeedle');if(needle){needle.style.transform='rotate(0deg)';needle.style.stroke='#888';needle.style.filter='';}
+  const ac=document.getElementById('arcCents');if(ac){ac.textContent='';ac.style.color='';}
+  setBgGlow(null);
+}
+
+// ─── MATH ─────────────────────────────────────────
+function midi2f(m){return refA*Math.pow(2,(m-69)/12);}
+function f2midi(f){return 69+12*Math.log2(f/refA);}
+function noteInfo(freq){const fm=f2midi(freq),midi=Math.round(fm),cts=Math.round((fm-midi)*100),oct=Math.floor(midi/12)-1,ni=((midi%12)+12)%12;return{oct,cts,name:NOTES[ni]};}
+function noteHz(note,oct){return midi2f((oct+1)*12+NAT_M[NAT.indexOf(note)]);}
+function tuneCol(c){return Math.abs(c)<=5?'#4CAF50':Math.abs(c)<=20?'#FFC107':'#ff4444';}
+function hexA(hex,a){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return'rgba('+r+','+g+','+b+','+a+')';}
+</script>
+</body>
+</html>
