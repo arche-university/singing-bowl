@@ -624,11 +624,11 @@ const PRESETS=[
 const CATS=[{id:'all',labelKey:'catAll'},{id:'chakra',labelKey:'catChakra'},{id:'organ',labelKey:'catOrgan'},{id:'brain',labelKey:'catBrain'}];
 
 const G_MIDI=[40,45,50,55,59,64],G_LBL=['E₂','A₂','D₃','G₃','B₃','E₄'];
-const NG=0.003,HOLD=1200,SM=0.88;
+const NG=0.003,HOLD=400,SM=0.75;
 
 // ─── STATE ───────────────────────────────────────
 let refA=440,mode='bowl',bowlTab='auto';
-let listening=false,smF=-1,lastDetT=0,lastVF=-1,yConf=0,pitchLpf=null;
+let listening=false,smF=-1,lastDetT=0,lastVF=-1,yConf=0;
 let actx=null,anlsr=null,mStream=null,raf=null;
 let placed=[],bid=0,selId=-1,editMode=false,popId=-1;
 let bowlAudio=new Map();
@@ -1575,12 +1575,8 @@ async function startListening(){
     mStream=stream;
     console.log('[TUNER] mic stream OK', stream.getAudioTracks()); // [DEBUG]
     const src=actx.createMediaStreamSource(mStream);
-    // Low-pass filter to strip inharmonic bowl partials (2.756x, 5.179x) before pitch detection
-    pitchLpf=actx.createBiquadFilter();pitchLpf.type='lowpass';pitchLpf.frequency.value=1500;pitchLpf.Q.value=0.7;
-    src.connect(pitchLpf);
-    anlsr=actx.createAnalyser();anlsr.fftSize=4096;anlsr.smoothingTimeConstant=0;pitchLpf.connect(anlsr);
-    // Unfiltered analyser for waveform display
-    waveAnalyser=actx.createAnalyser();waveAnalyser.fftSize=2048;waveAnalyser.smoothingTimeConstant=0.8;src.connect(waveAnalyser);
+    anlsr=actx.createAnalyser();anlsr.fftSize=4096;anlsr.smoothingTimeConstant=0;src.connect(anlsr);
+    waveAnalyser=anlsr;
     listening=true;setSBtn(true);setStat('<span class="dot"></span>'+t('listening'));
     showWaveform(true);loop();
     // ③ 1초 후 RMS 체크 — 신호 없으면 경고
@@ -1626,32 +1622,62 @@ function loop(){
   const buf=new Float32Array(anlsr.fftSize);anlsr.getFloatTimeDomainData(buf);
   let rms=0;for(let i=0;i<buf.length;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/buf.length);
   if(rms<NG){if(lastVF>0&&Date.now()-lastDetT<HOLD)return;resetDisp();lastVF=-1;return;}
-  const minHz=mode==='guitar'?60:60,maxHz=mode==='guitar'?400:1500;
+  const minHz=mode==='guitar'?70:70,maxHz=mode==='guitar'?400:1500;
   const raw=yin(buf,actx.sampleRate,minHz,maxHz);
-  if(raw<0||yConf>0.30){if(lastVF>0&&Date.now()-lastDetT<HOLD)return;resetDisp();lastVF=-1;if(pitchLpf)pitchLpf.frequency.value=1500;return;}
+  if(raw<0||yConf>0.15){if(lastVF>0&&Date.now()-lastDetT<HOLD)return;resetDisp();lastVF=-1;return;}
   const freq=doSmooth(raw);lastVF=freq;lastDetT=Date.now();updateDisp(freq);
-  // Adaptive LP: once we have a stable pitch, narrow the filter to suppress inharmonic partials
-  if(pitchLpf&&mode==='bowl'){const cut=Math.min(2200,Math.max(400,freq*2.2));pitchLpf.frequency.setTargetAtTime(cut,actx.currentTime,0.1);}
 }
-const smBuf=[];const SM_WIN=5;
+let _smBuf=[];
 function doSmooth(f){
-  if(smF<0){smF=f;smBuf.length=0;smBuf.push(f);return f;}
-  if(Math.abs(1200*Math.log2(f/smF))>200){smF=f;smBuf.length=0;smBuf.push(f);return f;}
-  smBuf.push(f);if(smBuf.length>SM_WIN)smBuf.shift();
-  // Median filter then EMA for stable, jitter-free output
-  const sorted=[...smBuf].sort((a,b)=>a-b);const med=sorted[sorted.length>>1];
-  smF=SM*med+(1-SM)*smF;return smF;
+  _smBuf.push(f);if(_smBuf.length>5)_smBuf.shift();
+  const sorted=[..._smBuf].sort((a,b)=>a-b);
+  const med=sorted[Math.floor(sorted.length/2)];
+  if(Math.abs(1200*Math.log2(f/med))>700){_smBuf=[f];smF=f;return f;}
+  if(smF<0){smF=med;return med;}
+  smF=SM*med+(1-SM)*smF;
+  return smF;
 }
 function yin(buf,sr,minHz,maxHz){
-  const N=buf.length,W=N>>1,tMin=Math.max(2,Math.floor(sr/maxHz)),tMax=Math.min(W-1,Math.floor(sr/minHz));
+  const N=buf.length,W=N>>1;
+  const tMin=Math.max(2,Math.floor(sr/maxHz));
+  const tMax=Math.min(W-1,Math.floor(sr/minHz));
   const d=new Float32Array(tMax+1);
-  for(let tau=1;tau<=tMax;tau++){let s=0;for(let j=0;j<W;j++){const x=buf[j]-buf[j+tau];s+=x*x;}d[tau]=s;}
-  const c=new Float32Array(tMax+1);c[0]=1;let run=0;
+  for(let tau=1;tau<=tMax;tau++){
+    let s=0;
+    for(let j=0;j<W;j++){const x=buf[j]-buf[j+tau];s+=x*x;}
+    d[tau]=s;
+  }
+  const c=new Float32Array(tMax+1);c[0]=1;
+  let run=0;
   for(let tau=1;tau<=tMax;tau++){run+=d[tau];c[tau]=run===0?0:d[tau]*tau/run;}
-  const T=0.12;
-  for(let tau=tMin;tau<tMax-1;tau++){if(c[tau]<T){while(tau+1<tMax&&c[tau+1]<c[tau])tau++;yConf=c[tau];return sr/parab(c,tau);}}
-  let mv=Infinity,mt=tMin;for(let t=tMin;t<=tMax;t++){if(c[t]<mv){mv=c[t];mt=t;}}
-  yConf=mv;return mv<0.40?sr/parab(c,mt):-1;
+  const T=0.10;
+  let bestTau=-1;
+  for(let tau=tMin;tau<tMax-1;tau++){
+    if(c[tau]<T){
+      while(tau+1<tMax&&c[tau+1]<c[tau])tau++;
+      bestTau=tau;
+      break;
+    }
+  }
+  if(bestTau<0){
+    let mv=Infinity,mt=tMin;
+    for(let t=tMin;t<=tMax;t++){if(c[t]<mv){mv=c[t];mt=t;}}
+    if(mv>=0.30){yConf=mv;return -1;}
+    bestTau=mt;
+  }
+  if(c[bestTau]>0.01){
+    for(const mult of [2,3]){
+      const tCand=bestTau*mult;
+      if(tCand>=tMax-1)break;
+      const lo=Math.max(tMin,Math.floor(tCand*0.95));
+      const hi=Math.min(tMax-1,Math.ceil(tCand*1.05));
+      let lm=Infinity,lt=tCand;
+      for(let t=lo;t<=hi;t++){if(c[t]<lm){lm=c[t];lt=t;}}
+      if(lm<0.15&&lm<c[bestTau]*0.85){bestTau=lt;}
+    }
+  }
+  yConf=c[bestTau];
+  return sr/parab(c,bestTau);
 }
 function parab(a,t){if(t<=0||t>=a.length-1)return t;const s0=a[t-1],s1=a[t],s2=a[t+1],d=2*s1-s0-s2;return Math.abs(d)<1e-10?t:t+(s0-s2)/(2*d);}
 
@@ -1709,6 +1735,7 @@ function resetDisp(){
   const needle=document.getElementById('arcNeedle');if(needle){needle.style.transform='rotate(0deg)';needle.style.stroke='#888';needle.style.filter='';}
   const ac=document.getElementById('arcCents');if(ac){ac.textContent='';ac.style.color='';}
   setBgGlow(null);
+  _smBuf=[];smF=-1;
 }
 
 // ─── MATH ─────────────────────────────────────────
